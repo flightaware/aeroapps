@@ -97,7 +97,7 @@ def format_response(raw_payload, top_level):
             entry[rename[key]] = entry.pop(key)
 
         # convert iso dates to python datetime
-        # jsonify in the flask return will serilaize python datetime to RFC 822 standard
+        # jsonify in the flask return will serialize python datetime to RFC 822 standard
         for prefix in ["actual", "scheduled", "estimated"]:
             for suffix in ["out", "off", "on", "in"]:
                 key = f"{prefix}_{suffix}"

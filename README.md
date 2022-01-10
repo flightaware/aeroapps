@@ -8,7 +8,7 @@ implentations of backend services. These various language example containers
 are managed by Docker Compose with profiles named for each language.
 
 ## Quickstart
-You mus set the following variable (in your environment or a .env file) before
+You must set the following variable (in your environment or a .env file) before
 you can start using Aero Apps.
 
 * AEROAPI_KEY - Your FlightAware AeroAPI access key
