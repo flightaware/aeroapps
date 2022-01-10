@@ -13,7 +13,6 @@ AEROAPI_KEY = os.environ["AEROAPI_KEY"]
 AEROAPI = requests.Session()
 AEROAPI.headers.update({"x-apikey": AEROAPI_KEY})
 
-# Default cache time of 5 minutes
 # prevents excessive AeroAPI queries on page refresh
 CACHE_CONFIG = {"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300}
 # pylint: disable=invalid-name
@@ -95,8 +94,7 @@ def format_response(raw_payload, top_level):
 
         # rename keys for parity with firestarter
         for key in rename:
-            entry[rename[key]] = entry[key]
-            entry.pop(key)
+            entry[rename[key]] = entry.pop(key)
 
         # convert iso dates to python datetime
         # jsonify in the flask return will serilaize python datetime to RFC 822 standard
@@ -116,13 +114,15 @@ def format_response(raw_payload, top_level):
 
 
 @app.route("/positions/<fa_flight_id>")
-@CACHE.cached(timeout=10)
+@CACHE.cached(timeout=30)
 def get_positions(fa_flight_id: str) -> Response:
-    """Get positions for a specific fa_flight_id"""
+    """Get positions for a specific fa_flight_id
+    This route has a shorter cache time since positions are more time sensitive
+    """
     api_resource = f"/flights/{fa_flight_id}/track"
     result = AEROAPI.get(f"{AEROAPI_BASE_URL}{api_resource}")
-    if result is None:
-        abort(404)
+    if result.status_code != 200:
+        abort(result.status_code)
     return jsonify(result.json()["positions"])
 
 
@@ -130,17 +130,29 @@ def get_positions(fa_flight_id: str) -> Response:
 @app.route("/flights/<fa_flight_id>")
 def get_flight(fa_flight_id: Optional[str] = None) -> Response:
     """Get info for a specific fa_flight_id"""
-    api_resource = f"/flights/{fa_flight_id}"
 
-    # if not in the request, try looking in the cache for a random fa_flight_id
+    # Grab a random fa_flight_id from a broad search query if one isn't provided
     if fa_flight_id is None:
-        flight_id_list = []
-        for item in CACHE.cache._cache:
-            # api_resource summaries are in the cache too, don't select those
-            if len(item.split("/")) == 1:
-                flight_id_list.append(item)
-        fa_flight_id = random.choice(flight_id_list)
+        api_resource = "/flights/search"
+        flight_id_list = CACHE.get(api_resource)
 
+        if flight_id_list is None:
+            params = {"query": "-inAir 1"}
+            app.logger.info(f"Making AeroAPI request to GET {api_resource}")
+            result = AEROAPI.get(f"{AEROAPI_BASE_URL}{api_resource}", params=params)
+            if result.status_code != 200:
+                abort(result.status_code)
+            flight_id_list = []
+            for flight in result.json()["flights"]:
+                flight_id_list.append(flight["fa_flight_id"])
+            CACHE.set(api_resource, flight_id_list)
+        else:
+            app.logger.info(f"Populating {api_resource} from cache")
+
+        return get_flight(random.choice(flight_id_list))
+
+    # Otherwise look up the provided fa_flight_id
+    api_resource = f"/flights/{fa_flight_id}"
     flight = CACHE.get(fa_flight_id)
     if flight is None:
         app.logger.info(f"Making AeroAPI request to GET {api_resource}")
@@ -172,8 +184,6 @@ def get_busiest_airports() -> Response:
         airports = []
         for entry in result.json()["entities"]:
             airports.append(entry["entity_id"])
-        if result is None:
-            abort(404)
     else:
         app.logger.info(f"Populating {api_resource} from cache")
 
@@ -212,8 +222,11 @@ def airport_scheduled(airport: str) -> Response:
 
 
 @app.route("/mapskey/<fa_flight_id>")
-def get_maps_key(fa_flight_id: str) -> Response:
-    """Get a static map image of the current flight"""
+def get_map(fa_flight_id: str) -> Response:
+    """Get a static map image of the current flight in base64 png format
+    App route is a hold over from the original Firestarter that would return
+    a Google Maps api key rather than a base64 png image
+    """
     api_resource = f"/flights/{fa_flight_id}/map"
     maps_data = CACHE.get(api_resource)
 
