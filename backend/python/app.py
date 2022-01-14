@@ -1,4 +1,4 @@
-"""Hello new flask app"""
+"""Query flight information from AeroAPI and present it to a frontend service"""
 
 from datetime import datetime, timezone
 import os
@@ -164,9 +164,6 @@ def get_flight(fa_flight_id: Optional[str] = None) -> Response:
     else:
         app.logger.info(f"Populating {api_resource} from cache")
 
-    if flight is None:
-        abort(404)
-
     return jsonify(flight)
 
 
@@ -221,11 +218,9 @@ def airport_scheduled(airport: str) -> Response:
     return jsonify(boards_request(api_resource, "scheduled_departures"))
 
 
-@app.route("/mapskey/<fa_flight_id>")
+@app.route("/map/<fa_flight_id>")
 def get_map(fa_flight_id: str) -> Response:
     """Get a static map image of the current flight in base64 png format
-    App route is a hold over from the original Firestarter that would return
-    a Google Maps api key rather than a base64 png image
     """
     api_resource = f"/flights/{fa_flight_id}/map"
     maps_data = CACHE.get(api_resource)
