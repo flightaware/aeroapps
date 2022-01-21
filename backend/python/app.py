@@ -77,7 +77,15 @@ def format_response(raw_payload, top_level):
         "true_cancel",
     ]
     orig_dest = ["destination", "origin"]
-    rename = {"ident": "flight_number", "filed_airspeed": "filed_speed", "fa_flight_id": "id"}
+    rename = {
+        "ident": "flight_number",
+        "filed_airspeed": "filed_speed",
+        "fa_flight_id": "id",
+        "gate_origin": "actual_departure_gate",
+        "gate_destination": "actual_arrival_gate",
+        "terminal_origin": "actual_departure_terminal",
+        "terminal_destination": "actual_arrival_terminal",
+    }
 
     formatted_payload = []
 
