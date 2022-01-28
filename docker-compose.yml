@@ -2,7 +2,7 @@ version: '3.7'
 
 services:
   python-backend:
-    image: "ghcr.io/flightaware/aeroapps/python-backend:${AEROAPP_VERSION:-latest}"
+    image: "ghcr.io/flightaware/aeroapps/python-backend:${AEROAPPS_VERSION:-latest}"
     profiles: ["python"]
     build:
       context: .
@@ -13,6 +13,7 @@ services:
           - fids-backend
     environment:
       - AEROAPI_KEY=${AEROAPI_KEY:?AEROAPI_KEY variable must be set}
+      - CACHE_TIME=${CACHE_TIME:-300}
     logging:
       driver: "json-file"
       options:
@@ -20,7 +21,7 @@ services:
         max-file: "5"
 
   java-backend:
-    image: "ghcr.io/flightaware/aeroapps/python-backend:${AEROAPP_VERSION:-latest}"
+    image: "ghcr.io/flightaware/aeroapps/java-backend:${AEROAPPS_VERSION:-latest}"
     profiles: ["java"]
     build:
       context: .
@@ -31,6 +32,7 @@ services:
           - fids-backend
     environment:
       - AEROAPI_KEY=${AEROAPI_KEY:?AEROAPI_KEY variable must be set}
+      - CACHE_TIME=${CACHE_TIME:-300}
     logging:
       driver: "json-file"
       options:

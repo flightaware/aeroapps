@@ -28,6 +28,7 @@ public class App {
 
     static String AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi";
     static String AEROAPI_KEY = System.getenv("AEROAPI_KEY");
+    static int CACHE_TIME = Integer.parseInt(System.getenv("CACHE_TIME"));
     static final OkHttpClient client = new OkHttpClient();
 
     static ObjectMapper mapper = new ObjectMapper();
@@ -35,11 +36,11 @@ public class App {
     // Cache of API resources to prevent excessive AeroAPI queries on page refresh
     // A cache get for a missing entry will return an empty object instance
     static LoadingCache<String, ArrayNode> CACHE = Caffeine.newBuilder()
-        .expireAfterWrite(5, TimeUnit.MINUTES)
+        .expireAfterWrite(CACHE_TIME, TimeUnit.SECONDS)
         .build(key -> mapper.createArrayNode());
 
     static LoadingCache<String, ObjectNode> FLIGHT_CACHE = Caffeine.newBuilder()
-        .expireAfterWrite(5, TimeUnit.MINUTES)
+        .expireAfterWrite(CACHE_TIME, TimeUnit.SECONDS)
         .build(key -> mapper.createObjectNode());
 
     static final Logger logger = LoggerFactory.getLogger("App");

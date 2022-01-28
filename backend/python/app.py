@@ -10,11 +10,12 @@ from flask_caching import Cache
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 AEROAPI_KEY = os.environ["AEROAPI_KEY"]
+CACHE_TIME = os.environ["CACHE_TIME"]
 AEROAPI = requests.Session()
 AEROAPI.headers.update({"x-apikey": AEROAPI_KEY})
 
 # prevents excessive AeroAPI queries on page refresh
-CACHE_CONFIG = {"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300}
+CACHE_CONFIG = {"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": CACHE_TIME}
 # pylint: disable=invalid-name
 app = Flask(__name__)
 app.config.from_mapping(CACHE_CONFIG)
