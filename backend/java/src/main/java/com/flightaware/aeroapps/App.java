@@ -86,7 +86,7 @@ public class App {
             airport_scheduled(req.params("airport")), new renderJson()
         );
         get("/map/:faFlightId", (req, res) ->
-            map(req.params("faFlightId")), new renderJson()
+            get_map(req.params("faFlightId"))
         );
     }
 
@@ -421,7 +421,7 @@ public class App {
     * @param  faFlightId The flight code to fetch a map image for
     * @return            Base64 representation of a png map tile
     */
-    private static JsonNode map(String faFlightId) {
+    private static String get_map(String faFlightId) {
         String apiResource = String.format("/flights/%s/map", faFlightId);
         ArrayNode map = CACHE.get(apiResource);
 
@@ -440,6 +440,6 @@ public class App {
             CACHE.put(apiResource, map);
         }
 
-        return map;
+        return map.get(0).asText();
     }
 }
