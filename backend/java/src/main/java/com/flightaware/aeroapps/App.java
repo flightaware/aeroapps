@@ -62,35 +62,35 @@ public class App {
 
         // Actual fids endpoints
         get("/positions/:faFlightId", (req, res) ->
-            get_positions(req.params("faFlightId")), new renderJson()
+            get_positions(req.params("faFlightId")), new RenderJson()
         );
         get("/flights/", (req, res) ->
-            get_flight_random(), new renderJson()
+            get_flight_random(), new RenderJson()
         );
         get("/flights/:faFlightId", (req, res) ->
-            get_flight(req.params("faFlightId")), new renderJson()
+            get_flight(req.params("faFlightId")), new RenderJson()
         );
         get("/airports/", (req, res) ->
-            get_busiest_airports(), new renderJson()
+            get_busiest_airports(), new RenderJson()
         );
         get("/airports/:airport/arrivals", (req, res) ->
-            airport_arrivals(req.params("airport")), new renderJson()
+            airport_arrivals(req.params("airport")), new RenderJson()
         );
         get("/airports/:airport/departures", (req, res) ->
-            airport_departures(req.params("airport")), new renderJson()
+            airport_departures(req.params("airport")), new RenderJson()
         );
         get("/airports/:airport/enroute", (req, res) ->
-            airport_enroute(req.params("airport")), new renderJson()
+            airport_enroute(req.params("airport")), new RenderJson()
         );
         get("/airports/:airport/scheduled", (req, res) ->
-            airport_scheduled(req.params("airport")), new renderJson()
+            airport_scheduled(req.params("airport")), new RenderJson()
         );
         get("/map/:faFlightId", (req, res) ->
             get_map(req.params("faFlightId"))
         );
     }
 
-    static class renderJson implements spark.ResponseTransformer {
+    static class RenderJson implements spark.ResponseTransformer {
 
         /**
         * Override Spark's default endpoint render to handle JsonNode.

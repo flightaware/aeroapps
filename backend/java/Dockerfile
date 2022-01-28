@@ -1,10 +1,8 @@
-FROM openjdk:11-jdk-slim
+FROM maven:3.8.4-openjdk-11-slim
 
 LABEL org.opencontainers.image.source=https://github.com/flightaware/aero_apps
 
-# Update and install Maven
-RUN apt-get update && \
-    apt-get install -y maven
+# Make AeroApps user
 RUN id -u aeroapps || useradd -u 8081 aeroapps -c "AEROAPPS User" -m -s /bin/sh
 USER aeroapps
 WORKDIR /home/aeroapps
