@@ -160,7 +160,6 @@ public class App {
     */
     private static JsonNode format_response(JsonNode rawPayload, String topLevel) {
 
-        //CHECKSTYLE.OFF: VariableDeclarationUsageDistance
         List<String> missing = Arrays.asList(
             "actual_runway_off",
             "actual_runway_on",
@@ -175,41 +174,40 @@ public class App {
             "true_cancel"
         );
         List<String> origDest = Arrays.asList("destination", "origin");
-        Map<String, String> rename = new HashMap<String, String>();
-        rename.put("ident", "flight_number");
-        rename.put("filed_airspeed", "filed_speed");
-        rename.put("faFlightId", "id");
-        rename.put("gate_origin", "actual_departure_gate");
-        rename.put("gate_destination", "actual_arrival_gate");
-        rename.put("terminal_origin", "actual_departure_terminal");
-        rename.put("terminal_destination", "actual_arrival_terminal");
-        //CHECKSTYLE.ON: VariableDeclarationUsageDistance
+        Map<String, String> rename = Map.of(
+            "ident", "flight_number",
+            "filed_airspeed", "filed_speed",
+            "faFlightId", "id",
+            "gate_origin", "actual_departure_gate",
+            "gate_destination", "actual_arrival_gate",
+            "terminal_origin", "actual_departure_terminal",
+            "terminal_destination", "actual_arrival_terminal"
+        );
 
         ArrayNode formatted = mapper.createArrayNode();
 
         rawPayload.get(topLevel).forEach(entry -> {
 
-            // cast to ObjectNode for easier manipulation
+            // Cast to ObjectNode for easier manipulation
             ObjectNode node = (ObjectNode) entry;
 
-            // pad out missing keys to keep data structure in parity with firestarter
+            // Pad out missing keys to keep data structure in parity with firestarter
             missing.forEach(key -> node.putNull(key));
 
-            // flatten orig/dest object to a key:value
-            origDest.forEach(key -> 
+            // Flatten orig/dest object to a key:value
+            origDest.forEach(key ->
                 node.put(key, node.get(key).get("code"))
             );
 
-            // rename keys for parity with firestarter
-            rename.forEach((key, value) -> {
-                node.put(value, node.get(key));
-                node.remove(key);
-            });
+            // Rename keys for parity with firestarter
+            rename.forEach((key, value) ->
+                node.put(value, node.remove(key))
+            );
 
             formatted.add(node);
         });
 
-        // flights should return just the object, not a list containing one object
+        // Flights should return just the object, not a list containing one object
         if (topLevel == "flights") {
             return formatted.get(0);
         }
@@ -296,7 +294,7 @@ public class App {
                 halt(response.get("status").asInt(), response.toString());
             }
 
-            response.get("flights").forEach(entry -> 
+            response.get("flights").forEach(entry ->
                 flights.add(entry.get("faFlightId").asText())
             );
             CACHE.put(apiResource, flights);
@@ -326,7 +324,7 @@ public class App {
                 halt(response.get("status").asInt(), response.toString());
             }
 
-            response.get("entities").forEach(entry -> 
+            response.get("entities").forEach(entry ->
                 airports.add(entry.get("entity_id").asText())
             );
             CACHE.put(apiResource, airports);

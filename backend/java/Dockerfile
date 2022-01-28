@@ -1,4 +1,4 @@
-FROM openjdk:8
+FROM openjdk:11-jdk-slim
 
 LABEL org.opencontainers.image.source=https://github.com/flightaware/aero_apps
 
@@ -11,6 +11,7 @@ WORKDIR /home/aeroapps
 
 # Pull in dependencies and verify
 COPY --chown=aeroapps backend/java/pom.xml .
+COPY --chown=aeroapps backend/java/checkstyle.xml .
 RUN ["mvn", "dependency:resolve", "verify"]
 
 # Build our jar
