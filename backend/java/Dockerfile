@@ -17,4 +17,4 @@ RUN ["mvn", "dependency:resolve", "verify"]
 COPY --chown=aeroapps backend/java/src src/
 RUN ["mvn", "package"]
 
-CMD ["java", "-jar", "target/aeroapps-backend-jar-with-dependencies.jar"]backend/java/Dockerfile
+CMD ["java", "-jar", "target/aeroapps-backend-jar-with-dependencies.jar"]

@@ -32,14 +32,14 @@ public class App {
 
     static ObjectMapper mapper = new ObjectMapper();
 
-    // cache of API resources to prevent excessive AeroAPI queries on page refresh
-    // a cache get for a missing entry will return an empty object instance
+    // Cache of API resources to prevent excessive AeroAPI queries on page refresh
+    // A cache get for a missing entry will return an empty object instance
     static LoadingCache<String, ArrayNode> CACHE = Caffeine.newBuilder()
-        .expireAfterAccess(5, TimeUnit.MINUTES)
+        .expireAfterWrite(5, TimeUnit.MINUTES)
         .build(key -> mapper.createArrayNode());
 
     static LoadingCache<String, ObjectNode> FLIGHT_CACHE = Caffeine.newBuilder()
-        .expireAfterAccess(5, TimeUnit.MINUTES)
+        .expireAfterWrite(5, TimeUnit.MINUTES)
         .build(key -> mapper.createObjectNode());
 
     static final Logger logger = LoggerFactory.getLogger("App");
@@ -79,7 +79,7 @@ public class App {
     * Makes an AeroAPI request.
     *
     * @param resource an AeroAPI resource URI
-    * @return         An AeroAPI response body as String
+    * @return         An AeroAPI response body
     */
     private static JsonNode aeroapi_get(String resource) {
         int code = 500;
@@ -97,7 +97,7 @@ public class App {
             result = (ObjectNode) mapper.readTree(response.body().string());
         } catch (Exception e) {
             // AeroAPI will normally produce useful errors
-            // In the case of an caught error emulate this style 
+            // In the case of a caught error emulate this style
             result.put("title", e.getClass().getSimpleName());
             result.put("detail", e.getMessage());
         }
@@ -107,7 +107,7 @@ public class App {
     }
 
     /**
-    * Common tasks invovled with a boards (airports) request.
+    * Common tasks involved with a boards (airports) request.
     *
     * @param apiResource  The API resource URI
     * @param apiObjectKey The top level key expected api response object
@@ -154,9 +154,9 @@ public class App {
     * Formats an AeroAPI boards or flights/{id} response to maintain
     * parity with Firestarter and work in common fids_frontend.
     *
-    * @param rawPayload A raw AeroAPI resposne as a JsonNode object
-    * @param topLevel   a the top level key in the JsonNode object
-    * @return            An formatted JSON response body as a String
+    * @param rawPayload A raw AeroAPI involved as a JsonNode object
+    * @param topLevel   The top level key in the JsonNode object
+    * @return           A formatted JSON response body
     */
     private static JsonNode format_response(JsonNode rawPayload, String topLevel) {
 
@@ -250,7 +250,7 @@ public class App {
     /**
     * Gets the details of a given flight.
     *
-    * @param faFlightId the FlightAware Flight ID to look up
+    * @param faFlightId The FlightAware Flight ID to look up
     * @return           JSON flight information in string representation
     */
     private static String get_flight(String faFlightId) {
@@ -338,7 +338,7 @@ public class App {
     /**
     * Get a list of arrivals for a certain airport.
     *
-    * @param  airport the airport code to fetch arrivals for
+    * @param  airport The airport code to fetch arrivals for
     * @return         JSON array of airport codes in string representation
     */
     private static String airport_arrivals(String airport) {
@@ -349,7 +349,7 @@ public class App {
     /**
     * Get a list of departures for a certain airport.
     *
-    * @param  airport the airport code to fetch departures for
+    * @param  airport The airport code to fetch departures for
     * @return         JSON array of airport codes in string representation
     */
     private static String airport_departures(String airport) {
@@ -360,7 +360,7 @@ public class App {
     /**
     * "Get a list of flights enroute to a certain airport.
     *
-    * @param  airport the airport code to fetch enroute for
+    * @param  airport The airport code to fetch enroute for
     * @return         JSON array of airport codes in string representation
     */
     private static String airport_enroute(String airport) {
@@ -371,7 +371,7 @@ public class App {
     /**
     * Get a list of scheduled flights from a certain airport.
     *
-    * @param  airport the airport code to fetch scheduled for
+    * @param  airport The airport code to fetch scheduled for
     * @return         JSON array of airport codes in string representation
     */
     private static String airport_scheduled(String airport) {
@@ -382,8 +382,8 @@ public class App {
     /**
     * Get a static map image of the current flight.
     *
-    * @param  faFlightId the flight code to fetch a map image for
-    * @return              base64 representation of png map tile
+    * @param  faFlightId The flight code to fetch a map image for
+    * @return            Base64 representation of a png map tile
     */
     private static String map(String faFlightId) {
         String apiResource = String.format("/flights/%s/map", faFlightId);
