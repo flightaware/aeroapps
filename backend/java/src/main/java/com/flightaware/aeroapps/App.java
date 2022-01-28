@@ -60,19 +60,56 @@ public class App {
         notFound((req, res) -> "{\"error\":\"Not Found\"}");
 
         // Actual fids endpoints
-        get("/positions/:faFlightId", (req, res) -> get_positions(req.params("faFlightId")));
-        get("/flights/", (req, res) -> get_flight_random());
-        get("/flights/:faFlightId", (req, res) -> get_flight(req.params("faFlightId")));
-        get("/airports/", (req, res) -> get_busiest_airports());
-        get("/airports/:airport/arrivals", (req, res) -> airport_arrivals(req.params("airport")));
-        get("/airports/:airport/departures", (req, res) ->
-            airport_departures(req.params("airport"))
+        get("/positions/:faFlightId", (req, res) ->
+            get_positions(req.params("faFlightId")), new renderJson()
         );
-        get("/airports/:airport/enroute", (req, res) -> airport_enroute(req.params("airport")));
-        get("/airports/:airport/scheduled", (req, res) -> airport_scheduled(req.params("airport")));
-        get("/map/:faFlightId", (req, res) -> map(req.params("faFlightId")));
+        get("/flights/", (req, res) ->
+            get_flight_random(), new renderJson()
+        );
+        get("/flights/:faFlightId", (req, res) ->
+            get_flight(req.params("faFlightId")), new renderJson()
+        );
+        get("/airports/", (req, res) ->
+            get_busiest_airports(), new renderJson()
+        );
+        get("/airports/:airport/arrivals", (req, res) ->
+            airport_arrivals(req.params("airport")), new renderJson()
+        );
+        get("/airports/:airport/departures", (req, res) ->
+            airport_departures(req.params("airport")), new renderJson()
+        );
+        get("/airports/:airport/enroute", (req, res) ->
+            airport_enroute(req.params("airport")), new renderJson()
+        );
+        get("/airports/:airport/scheduled", (req, res) ->
+            airport_scheduled(req.params("airport")), new renderJson()
+        );
+        get("/map/:faFlightId", (req, res) ->
+            map(req.params("faFlightId")), new renderJson()
+        );
     }
 
+    static class renderJson implements spark.ResponseTransformer {
+
+        /**
+        * Override Spark's default endpoint render to handle JsonNode.
+        */
+        @Override
+        public String render(Object node) {
+            String json = "";
+            try {
+                json = mapper.writeValueAsString(node);
+            } catch (Exception e) {
+                logger.error(e.getMessage());
+                json = String.format(
+                    "{\"title\":\"%s\", \"detail\":\"%s\"}", 
+                    e.getClass().getSimpleName(), e.getMessage()
+                );
+                halt(500, json);
+            }
+            return json;
+        }
+    }
 
     // Internal support functions //
     /**
@@ -90,7 +127,7 @@ public class App {
             .url(String.format("%s%s", AEROAPI_BASE_URL, resource))
             .build();
 
-        // both execute() and readTree() can raise exceptions that must be handled
+        // Both execute() and readTree() can raise exceptions that must be handled
         try {
             Response response = client.newCall(request).execute();
             code = response.code();
@@ -113,7 +150,7 @@ public class App {
     * @param apiObjectKey The top level key expected api response object
     * @return             The processed flights object
      */
-    private static String boards_request(String apiResource, String apiObjectKey) {
+    private static JsonNode boards_request(String apiResource, String apiObjectKey) {
         ArrayNode flights = mapper.createArrayNode();
         ArrayNode idList = CACHE.get(apiResource);
 
@@ -147,7 +184,7 @@ public class App {
             CACHE.put(apiResource, idList);
         }
 
-        return flights.toString();
+        return flights;
     }
 
     /**
@@ -223,7 +260,7 @@ public class App {
     * @param faFlightId the FlightAware Flight ID to look up
     * @return           JSON flight information in string representation
     */
-    private static String get_positions(String faFlightId) {
+    private static JsonNode get_positions(String faFlightId) {
         String apiResource = String.format("/flights/%s/track", faFlightId);
         ArrayNode postions = CACHE.get(apiResource);
 
@@ -242,7 +279,7 @@ public class App {
             CACHE.put(apiResource, postions);
         }
 
-        return postions.toString();
+        return postions;
     }
 
     /**
@@ -251,7 +288,7 @@ public class App {
     * @param faFlightId The FlightAware Flight ID to look up
     * @return           JSON flight information in string representation
     */
-    private static String get_flight(String faFlightId) {
+    private static JsonNode get_flight(String faFlightId) {
         String apiResource = String.format("/flights/%s", faFlightId);
         ObjectNode flight = FLIGHT_CACHE.get(faFlightId);
 
@@ -270,7 +307,7 @@ public class App {
             FLIGHT_CACHE.put(faFlightId, flight);
         }
 
-        return flight.toString();
+        return flight;
     }
 
     /**
@@ -278,7 +315,7 @@ public class App {
     *
     * @return JSON flight information in string representation
     */
-    private static String get_flight_random() {
+    private static JsonNode get_flight_random() {
         String apiResource = "/flights/search?query=-inAir 1";
         ArrayNode flights = CACHE.get(apiResource);
         Random rand = new Random();
@@ -309,7 +346,7 @@ public class App {
     *
     * @return JSON array of airport codes in string representation
     */
-    private static String get_busiest_airports() {
+    private static JsonNode get_busiest_airports() {
         String apiResource = "/disruption_counts/origin";
         ArrayNode airports = CACHE.get(apiResource);
 
@@ -330,7 +367,7 @@ public class App {
             CACHE.put(apiResource, airports);
         }
 
-        return airports.toString();
+        return airports;
     }
 
     /**
@@ -339,7 +376,7 @@ public class App {
     * @param  airport The airport code to fetch arrivals for
     * @return         JSON array of airport codes in string representation
     */
-    private static String airport_arrivals(String airport) {
+    private static JsonNode airport_arrivals(String airport) {
         String apiResource = String.format("/airports/%s/flights/arrivals", airport);
         return boards_request(apiResource, "arrivals");
     }
@@ -350,7 +387,7 @@ public class App {
     * @param  airport The airport code to fetch departures for
     * @return         JSON array of airport codes in string representation
     */
-    private static String airport_departures(String airport) {
+    private static JsonNode airport_departures(String airport) {
         String apiResource = String.format("/airports/%s/flights/departures", airport);
         return boards_request(apiResource, "departures");
     }
@@ -361,7 +398,7 @@ public class App {
     * @param  airport The airport code to fetch enroute for
     * @return         JSON array of airport codes in string representation
     */
-    private static String airport_enroute(String airport) {
+    private static JsonNode airport_enroute(String airport) {
         String apiResource = String.format("/airports/%s/flights/scheduled_arrivals", airport);
         return boards_request(apiResource, "scheduled_arrivals");
     }
@@ -372,7 +409,7 @@ public class App {
     * @param  airport The airport code to fetch scheduled for
     * @return         JSON array of airport codes in string representation
     */
-    private static String airport_scheduled(String airport) {
+    private static JsonNode airport_scheduled(String airport) {
         String apiResource = String.format("/airports/%s/flights/scheduled_departures", airport);
         return boards_request(apiResource, "scheduled_departures");
     }
@@ -383,7 +420,7 @@ public class App {
     * @param  faFlightId The flight code to fetch a map image for
     * @return            Base64 representation of a png map tile
     */
-    private static String map(String faFlightId) {
+    private static JsonNode map(String faFlightId) {
         String apiResource = String.format("/flights/%s/map", faFlightId);
         ArrayNode map = CACHE.get(apiResource);
 
@@ -402,6 +439,6 @@ public class App {
             CACHE.put(apiResource, map);
         }
 
-        return map.toString();
+        return map;
     }
 }
