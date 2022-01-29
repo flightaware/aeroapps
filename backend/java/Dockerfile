@@ -1,6 +1,6 @@
 FROM maven:3.8.4-openjdk-11-slim
 
-LABEL org.opencontainers.image.source=https://github.com/flightaware/aero_apps
+LABEL org.opencontainers.image.source=https://github.com/flightaware/aeroapps
 
 # Make AeroApps user
 RUN id -u aeroapps || useradd -u 8081 aeroapps -c "AEROAPPS User" -m -s /bin/sh
