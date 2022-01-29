@@ -2,7 +2,7 @@ version: '3.7'
 
 services:
   python-backend:
-    image: "ghcr.io/flightaware/aeroapps/python-backend:${AEROAPP_VERSION:-latest}"
+    image: "ghcr.io/flightaware/aeroapps/python-backend:${AEROAPPS_VERSION:-latest}"
     profiles: ["python"]
     build:
       context: .
@@ -13,6 +13,26 @@ services:
           - fids-backend
     environment:
       - AEROAPI_KEY=${AEROAPI_KEY:?AEROAPI_KEY variable must be set}
+      - CACHE_TIME=${CACHE_TIME:-300}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "5"
+
+  java-backend:
+    image: "ghcr.io/flightaware/aeroapps/java-backend:${AEROAPPS_VERSION:-latest}"
+    profiles: ["java"]
+    build:
+      context: .
+      dockerfile: backend/java/Dockerfile
+    networks:
+      internal:
+        aliases:
+          - fids-backend
+    environment:
+      - AEROAPI_KEY=${AEROAPI_KEY:?AEROAPI_KEY variable must be set}
+      - CACHE_TIME=${CACHE_TIME:-300}
     logging:
       driver: "json-file"
       options:
@@ -21,7 +41,7 @@ services:
 
   fids-frontend:
     image: "ghcr.io/flightaware/fids_frontend/fids-frontend:${FIDS_VERSION:-latest}"
-    profiles: ["python"]
+    profiles: ["python", "java"]
     ports:
       # Port upon which to serve webapp
       - "80:80"
