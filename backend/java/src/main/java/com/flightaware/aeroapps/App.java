@@ -259,7 +259,7 @@ public class App {
     * Gets the positions of a given flight.
     *
     * @param faFlightId the FlightAware Flight ID to look up
-    * @return           JSON flight information in string representation
+    * @return           JSON flight information
     */
     private static JsonNode get_positions(String faFlightId) {
         String apiResource = String.format("/flights/%s/track", faFlightId);
@@ -287,7 +287,7 @@ public class App {
     * Gets the details of a given flight.
     *
     * @param faFlightId The FlightAware Flight ID to look up
-    * @return           JSON flight information in string representation
+    * @return           JSON flight information
     */
     private static JsonNode get_flight(String faFlightId) {
         String apiResource = String.format("/flights/%s", faFlightId);
@@ -314,7 +314,7 @@ public class App {
     /**
     * Gets the details of a random flight.
     *
-    * @return JSON flight information in string representation
+    * @return JSON flight information
     */
     private static JsonNode get_flight_random() {
         String apiResource = "/flights/search?query=-inAir 1";
@@ -345,7 +345,7 @@ public class App {
     /**
     * Gets the busiest airports by cancellation volume.
     *
-    * @return JSON array of airport codes in string representation
+    * @return JSON array of airport codes
     */
     private static JsonNode get_busiest_airports() {
         String apiResource = "/disruption_counts/origin";
@@ -375,7 +375,7 @@ public class App {
     * Get a list of arrivals for a certain airport.
     *
     * @param  airport The airport code to fetch arrivals for
-    * @return         JSON array of airport codes in string representation
+    * @return         JSON array of airport codes
     */
     private static JsonNode airport_arrivals(String airport) {
         String apiResource = String.format("/airports/%s/flights/arrivals", airport);
@@ -386,7 +386,7 @@ public class App {
     * Get a list of departures for a certain airport.
     *
     * @param  airport The airport code to fetch departures for
-    * @return         JSON array of airport codes in string representation
+    * @return         JSON array of airport codes
     */
     private static JsonNode airport_departures(String airport) {
         String apiResource = String.format("/airports/%s/flights/departures", airport);
@@ -397,7 +397,7 @@ public class App {
     * "Get a list of flights enroute to a certain airport.
     *
     * @param  airport The airport code to fetch enroute for
-    * @return         JSON array of airport codes in string representation
+    * @return         JSON array of airport codes
     */
     private static JsonNode airport_enroute(String airport) {
         String apiResource = String.format("/airports/%s/flights/scheduled_arrivals", airport);
@@ -408,7 +408,7 @@ public class App {
     * Get a list of scheduled flights from a certain airport.
     *
     * @param  airport The airport code to fetch scheduled for
-    * @return         JSON array of airport codes in string representation
+    * @return         JSON array of airport codes
     */
     private static JsonNode airport_scheduled(String airport) {
         String apiResource = String.format("/airports/%s/flights/scheduled_departures", airport);
