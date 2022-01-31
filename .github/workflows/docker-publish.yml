@@ -1,0 +1,49 @@
+name: Publish Docker image
+
+on:
+  push:
+    # Publish `main` as Docker `latest` image.
+    branches:
+      - main
+
+    # Publish `v1.2.3` tags as releases.
+    tags:
+      - v*
+
+  workflow_dispatch:
+    # Allow manually triggered builds too.
+
+env:
+  PYTHON_IMAGE_NAME: python-backend
+  JAVA_IMAGE_NAME: java-backend
+  AEROAPPS_VERSION: latest
+
+jobs:
+  # Push image to GitHub Packages.
+  # See also https://docs.docker.com/docker-hub/builds/
+  push:
+
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build images
+        run: |
+          # Strip git ref prefix from version
+          AEROAPPS_VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+
+          # Use Docker `latest` tag convention
+          [ "$AEROAPPS_VERSION" == "main" ] && AEROAPPS_VERSION=latest
+
+          echo "AEROAPPS_VERSION=$AEROAPPS_VERSION" >> $GITHUB_ENV
+
+          docker-compose build --parallel $JAVA_IMAGE_NAME $PYTHON_IMAGE_NAME
+
+      - name: Log into registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
+
+      - name: Push images
+        run: 
+          docker-compose push $JAVA_IMAGE_NAME $PYTHON_IMAGE_NAME
