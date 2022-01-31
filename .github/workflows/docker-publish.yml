@@ -16,6 +16,7 @@ on:
 env:
   PYTHON_IMAGE_NAME: python-backend
   JAVA_IMAGE_NAME: java-backend
+  AEROAPI_KEY: dummy
   AEROAPPS_VERSION: latest
 
 jobs:
