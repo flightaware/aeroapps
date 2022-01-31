@@ -39,11 +39,11 @@ jobs:
 
           echo "AEROAPPS_VERSION=$AEROAPPS_VERSION" >> $GITHUB_ENV
 
-          docker-compose build --parallel $PYTHON_IMAGE_NAME $PYTHON_IMAGE_NAME
+          docker-compose build --parallel $JAVA_IMAGE_NAME $PYTHON_IMAGE_NAME
 
       - name: Log into registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
 
       - name: Push images
         run: 
-          docker-compose push $PYTHON_IMAGE_NAME $PYTHON_IMAGE_NAME
+          docker-compose push $JAVA_IMAGE_NAME $PYTHON_IMAGE_NAME
