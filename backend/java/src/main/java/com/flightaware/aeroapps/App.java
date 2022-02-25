@@ -215,7 +215,7 @@ public class App {
         Map<String, String> rename = Map.of(
             "ident", "flight_number",
             "filed_airspeed", "filed_speed",
-            "faFlightId", "id",
+            "fa_flight_id", "id",
             "gate_origin", "actual_departure_gate",
             "gate_destination", "actual_arrival_gate",
             "terminal_origin", "actual_departure_terminal",
