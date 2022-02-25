@@ -10,7 +10,7 @@ from flask_caching import Cache
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 AEROAPI_KEY = os.environ["AEROAPI_KEY"]
-CACHE_TIME = os.environ["CACHE_TIME"]
+CACHE_TIME = int(os.environ["CACHE_TIME"])
 AEROAPI = requests.Session()
 AEROAPI.headers.update({"x-apikey": AEROAPI_KEY})
 
