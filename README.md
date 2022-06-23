@@ -42,6 +42,6 @@ each container. The services will log periodically as AeroAPI requests are made
 , while the sample webapps will produce some initial log output and then only
 log as requests are made to them.
 
-You can test out the FIDS/Alerts sample application by visiting http://localhost in
+You can test out the FIDS/Alerts sample application by visiting http://localhost:8080 in
 your web browser (if not running Docker locally, use the Docker host's
 address).
