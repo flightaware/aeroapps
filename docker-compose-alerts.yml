@@ -13,7 +13,6 @@ services:
           - alerts-backend
     environment:
       - AEROAPI_KEY=${AEROAPI_KEY:?AEROAPI_KEY variable must be set}
-      - CACHE_TIME=${CACHE_TIME:-300}
     logging:
       driver: "json-file"
       options:

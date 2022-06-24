@@ -1,48 +1,64 @@
 """Query alert information from AeroAPI and present it to a frontend service"""
 import os
 from datetime import timezone
+from typing import Dict, Any, Union
 
+import json
 import requests
-from flask import Flask, jsonify, abort, Response, request
-from flask_caching import Cache
+from flask import Flask, jsonify, Response, request
 from flask_cors import CORS
 
-from sqlalchemy import exc, create_engine, text
+from sqlalchemy import exc, create_engine, MetaData, Table, Column, Integer, String, insert
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 AEROAPI_KEY = os.environ["AEROAPI_KEY"]
-CACHE_TIME = int(os.environ["CACHE_TIME"])
 AEROAPI = requests.Session()
 AEROAPI.headers.update({"x-apikey": AEROAPI_KEY})
 
-# prevents excessive AeroAPI queries on page refresh
-CACHE_CONFIG = {"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": CACHE_TIME}
 # pylint: disable=invalid-name
 app = Flask(__name__)
 CORS(app)
-app.config.from_mapping(CACHE_CONFIG)
-CACHE = Cache(app)
 UTC = timezone.utc
 ISO_TIME = "%Y-%m-%dT%H:%M:%SZ"
 
-# connect to the database
-engine = create_engine("sqlite+pysqlite:///:memory:", echo=False, future=True)
+# create the SQL engine using SQLite
+engine = create_engine(
+    "sqlite+pysqlite:////var/db/aeroapi_alerts/aeroapi_alerts.db", echo=False, future=True
+)
 
 
-def insert_into_db(data_to_insert: dict) -> int:
+def insert_into_db(data_to_insert: Dict[str, Union[str, int]]) -> int:
     """
-    Insert object into the database based off of the engine
+    Insert object into the database based off of the engine.
+    Assumes data_to_insert has values for all the keys:
+    fa_alert_id, ident, origin, destination, aircraft_type, start_date, end_date.
     Returns 0 on success, -1 otherwise
     """
+    table_name = "aeroapi_alerts_table"
     try:
-        with engine.begin() as conn:
-            stmt = text("""CREATE TABLE ex_table (fa_alert_id int, ident char(255), origin char(255), destination char(255),
-             aircraft_type char(255), start char(255), end char(255))""")
-            conn.execute(stmt)
-            stmt = text("""INSERT INTO ex_table (fa_alert_id, ident, origin, destination, aircraft_type, start, end)
-             VALUES (:fa_alert_id, :ident, :origin, :destination, :aircraft_type, :start, :end)""")
-            conn.execute(stmt, data_to_insert)
-    except exc.SQLAlchemyError:
+        metadata_obj = MetaData()
+        # create the table if it doesn't exist
+        table_to_insert = Table(
+            table_name,
+            metadata_obj,
+            Column("fa_alert_id", Integer, primary_key=True),
+            Column("ident", String(30)),
+            Column("origin", String(30)),
+            Column("destination", String(30)),
+            Column("aircraft_type", String(30)),
+            Column("start_date", String(30)),
+            Column("end_date", String(30)),
+        )
+        table_to_insert.create(engine, checkfirst=True)
+
+        # insert the info given
+        with engine.connect() as conn:
+            stmt = insert(table_to_insert)
+            result = conn.execute(stmt, data_to_insert)
+            conn.commit()
+
+    except exc.SQLAlchemyError as e:
+        app.logger.error(f"SQL error occurred: {e}")
         return -1
 
     return 0
@@ -58,40 +74,64 @@ def create_alert() -> Response:
     """
     # Process json
     content_type = request.headers.get("Content-Type")
+    data: Dict[Any]
+    response_frontend = {"Alert_id": None, "Success": False, "Description": None}
     if content_type == "application/json":
         data = request.json
-    elif content_type == "application/x-www-form-urlencoded":
-        data = request.get_json(force=True)
     else:
-        return jsonify({"Alert_id": None, "Success": False})
+        response_frontend["Description"] = "Invalid content sent"
+        return jsonify(response_frontend)
 
     api_resource = "/alerts"
 
     # Check if max_weekly and events in data
+    if "events" not in data:
+        # Assume want all events to be false
+        data["events"] = {
+            "arrival": False,
+            "departure": False,
+            "cancelled": False,
+            "diverted": False,
+            "filed": False,
+        }
     if "max_weekly" not in data:
         data["max_weekly"] = 1000
-    if "events" not in data:
-        # Assume want all events to be true
-        data["events"] = {
-            "arrival": True,
-            "departure": True,
-            "cancelled": True,
-            "diverted": True,
-            "filed": True,
-        }
 
     app.logger.info(f"Making AeroAPI request to POST {api_resource}")
     result = AEROAPI.post(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
     if result.status_code != 201:
-        abort(result.status_code)
+        # return to front end the error, decode and clean the response
+        response_frontend["Description"] = (f"""Error code {result.status_code} with 
+        the following description: {json.loads(result.content.decode("utf-8"))['detail'].strip()}""")
+        return jsonify(response_frontend)
 
     # Package created alert and put into database
-    fa_alert_id = result.headers['Location'][8:]
-    database_data = data
-    database_data['fa_alert_id'] = int(fa_alert_id)
-    insert_into_db(database_data)
+    fa_alert_id = int(result.headers["Location"][8:])
+    holder: Dict[str, Any] = data
+    holder.pop("events")
+    holder.pop("max_weekly")
+    # rename dates to avoid sql keyword "end" issue
+    holder["start_date"] = holder.pop("start")
+    holder["end_date"] = holder.pop("end")
+    database_data: Dict[str, Union[str, int]] = holder
+    database_data["fa_alert_id"] = fa_alert_id
 
-    return jsonify({"Alert_id": fa_alert_id, "Success": True})
+    response_frontend["Alert_id"] = fa_alert_id
+    if insert_into_db(database_data) == -1:
+        response_frontend["Description"] = """Database insertion error, 
+        check your database configuration"""
+        return jsonify(response_frontend)
+
+    response_frontend["Success"] = True
+    response_frontend["Description"] = "Request sent successfully"
+    return jsonify(response_frontend)
 
 
-app.run(host="0.0.0.0", port=5000, debug=True)
+@app.route("/post", methods=["POST"])
+def endpoint():
+    print(request.json, flush=True)
+
+    return jsonify("Hello")
+
+
+app.run(host="0.0.0.0", port=500, debug=True)
