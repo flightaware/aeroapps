@@ -127,11 +127,4 @@ def create_alert() -> Response:
     return jsonify(response_frontend)
 
 
-@app.route("/post", methods=["POST"])
-def endpoint():
-    print(request.json, flush=True)
-
-    return jsonify("Hello")
-
-
-app.run(host="0.0.0.0", port=500, debug=True)
+app.run(host="0.0.0.0", port=5000, debug=True)
