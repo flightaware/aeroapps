@@ -3,26 +3,21 @@ import os
 from datetime import timezone
 from typing import Dict, Any, Union
 
+import json
 import requests
-from flask import Flask, jsonify, abort, Response, request
-from flask_caching import Cache
+from flask import Flask, jsonify, Response, request
 from flask_cors import CORS
 
 from sqlalchemy import exc, create_engine, MetaData, Table, Column, Integer, String, insert
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 AEROAPI_KEY = os.environ["AEROAPI_KEY"]
-CACHE_TIME = int(os.environ["CACHE_TIME"])
 AEROAPI = requests.Session()
 AEROAPI.headers.update({"x-apikey": AEROAPI_KEY})
 
-# prevents excessive AeroAPI queries on page refresh
-CACHE_CONFIG = {"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": CACHE_TIME}
 # pylint: disable=invalid-name
 app = Flask(__name__)
 CORS(app)
-app.config.from_mapping(CACHE_CONFIG)
-CACHE = Cache(app)
 UTC = timezone.utc
 ISO_TIME = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -80,24 +75,24 @@ def create_alert() -> Response:
     # Process json
     content_type = request.headers.get("Content-Type")
     data: Dict[Any]
+    response_frontend = {"Alert_id": None, "Success": False, "Description": None}
     if content_type == "application/json":
         data = request.json
-    elif content_type == "application/x-www-form-urlencoded":
-        data = request.get_json(force=True)
     else:
-        return jsonify({"Alert_id": None, "Success": False})
+        response_frontend["Description"] = "Invalid content sent"
+        return jsonify(response_frontend)
 
     api_resource = "/alerts"
 
     # Check if max_weekly and events in data
     if "events" not in data:
-        # Assume want all events to be true
+        # Assume want all events to be false
         data["events"] = {
-            "arrival": True,
-            "departure": True,
-            "cancelled": True,
-            "diverted": True,
-            "filed": True,
+            "arrival": False,
+            "departure": False,
+            "cancelled": False,
+            "diverted": False,
+            "filed": False,
         }
     if "max_weekly" not in data:
         data["max_weekly"] = 1000
@@ -105,7 +100,10 @@ def create_alert() -> Response:
     app.logger.info(f"Making AeroAPI request to POST {api_resource}")
     result = AEROAPI.post(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
     if result.status_code != 201:
-        abort(result.status_code)
+        # return to front end the error, decode and clean the response
+        response_frontend["Description"] = (f"""Error code {result.status_code} with 
+        the following description: {json.loads(result.content.decode("utf-8"))['detail'].strip()}""")
+        return jsonify(response_frontend)
 
     # Package created alert and put into database
     fa_alert_id = result.headers["Location"][8:]
@@ -117,7 +115,25 @@ def create_alert() -> Response:
     if insert_into_db(database_data) == -1:
         return jsonify({"Alert_id": fa_alert_id, "Success": False})
 
-    return jsonify({"Alert_id": fa_alert_id, "Success": True})
+    fa_alert_id = int(result.headers["Location"][8:])
+    holder: Dict[str, Any] = data
+    holder.pop("events")
+    holder.pop("max_weekly")
+    # rename dates to avoid sql keyword "end" issue
+    holder["start_date"] = holder.pop("start")
+    holder["end_date"] = holder.pop("end")
+    database_data: Dict[str, Union[str, int]] = holder
+    database_data["fa_alert_id"] = fa_alert_id
+
+    response_frontend["Alert_id"] = fa_alert_id
+    if insert_into_db(database_data) == -1:
+        response_frontend["Description"] = """Database insertion error, 
+        check your database configuration"""
+        return jsonify(response_frontend)
+
+    response_frontend["Success"] = True
+    response_frontend["Description"] = "Request sent successfully"
+    return jsonify(response_frontend)
 
 
 app.run(host="0.0.0.0", port=5000, debug=True)
