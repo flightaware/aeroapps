@@ -54,7 +54,7 @@ def insert_into_db(data_to_insert: Dict[str, Union[str, int]]) -> int:
         # insert the info given
         with engine.connect() as conn:
             stmt = insert(table_to_insert)
-            result = conn.execute(stmt, data_to_insert)
+            conn.execute(stmt, data_to_insert)
             conn.commit()
 
     except exc.SQLAlchemyError as e:
