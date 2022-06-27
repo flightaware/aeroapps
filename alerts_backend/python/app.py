@@ -118,8 +118,7 @@ def create_alert() -> Response:
 
     response_frontend["Alert_id"] = fa_alert_id
     if insert_into_db(database_data) == -1:
-        response_frontend["Description"] = """Database insertion error, 
-        check your database configuration"""
+        response_frontend["Description"] = "Database insertion error, check your database configuration"
         return jsonify(response_frontend)
 
     response_frontend["Success"] = True
