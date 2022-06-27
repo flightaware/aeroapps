@@ -107,17 +107,15 @@ def create_alert() -> Response:
 
     # Package created alert and put into database
     fa_alert_id = int(result.headers["Location"][8:])
-    holder: Dict[str, Any] = data
-    holder.pop("events")
-    holder.pop("max_weekly")
+    data.pop("events")
+    data.pop("max_weekly")
     # rename dates to avoid sql keyword "end" issue
-    holder["start_date"] = holder.pop("start")
-    holder["end_date"] = holder.pop("end")
-    database_data: Dict[str, Union[str, int]] = holder
-    database_data["fa_alert_id"] = fa_alert_id
-
-    response_frontend["Alert_id"] = fa_alert_id
-    if insert_into_db(database_data) == -1:
+    # default to None in case a user directly submits and incomplete payload
+    data["start_date"] = data.pop("start", None)
+    data["end_date"] = holder.pop("end", None)
+    data["fa_alert_id"] = fa_alert_id
+ 
+    if insert_into_db(data) == -1:
         response_frontend["Description"] = "Database insertion error, check your database configuration"
         return jsonify(response_frontend)
 
