@@ -8,7 +8,8 @@ import requests
 from flask import Flask, jsonify, Response, request
 from flask_cors import CORS
 
-from sqlalchemy import exc, create_engine, MetaData, Table, Column, Integer, String, insert
+from sqlalchemy import (exc, create_engine, MetaData, Table,
+                        Column, Integer, Boolean, String, insert, delete, select)
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 AEROAPI_KEY = os.environ["AEROAPI_KEY"]
@@ -25,6 +26,44 @@ ISO_TIME = "%Y-%m-%dT%H:%M:%SZ"
 engine = create_engine(
     "sqlite+pysqlite:////var/db/aeroapi_alerts/aeroapi_alerts.db", echo=False, future=True
 )
+table_name = "aeroapi_alerts_table"
+
+
+@app.before_first_request
+def create_table():
+    """
+    Check if table exists, and if it doesn't create it.
+    Returns 0 on success, terminates with code -2 otherwise
+    """
+    try:
+        metadata_obj = MetaData()
+        # create the table if it doesn't exist
+        table_to_create = Table(
+            table_name,
+            metadata_obj,
+            Column("fa_alert_id", Integer, primary_key=True),
+            Column("ident", String(30), ),
+            Column("origin", String(30)),
+            Column("destination", String(30)),
+            Column("aircraft_type", String(30)),
+            Column("start_date", String(30)),
+            Column("end_date", String(30)),
+            Column("max_weekly", Integer),
+            Column("eta", Integer),
+            Column("arrival", Boolean),
+            Column("cancelled", Boolean),
+            Column("departure", Boolean),
+            Column("diverted", Boolean),
+            Column("filed", Boolean),
+
+        )
+        table_to_create.create(engine, checkfirst=True)
+        app.logger.info("Table successfully created / updated")
+    except exc.SQLAlchemyError as e:
+        app.logger.error(f"SQL error occurred during creation of table (CRITICAL - INSERT WILL FAIL): {e}")
+        return -1
+
+    return 0
 
 
 def insert_into_db(data_to_insert: Dict[str, Union[str, int]]) -> int:
@@ -32,33 +71,19 @@ def insert_into_db(data_to_insert: Dict[str, Union[str, int]]) -> int:
     Insert object into the database based off of the engine.
     Assumes data_to_insert has values for all the keys:
     fa_alert_id, ident, origin, destination, aircraft_type, start_date, end_date.
-    Returns 0 on success, -1 otherwise
+    Returns 0 on success, terminates otherwise with code -1
     """
-    table_name = "aeroapi_alerts_table"
     try:
-        metadata_obj = MetaData()
-        # create the table if it doesn't exist
-        table_to_insert = Table(
-            table_name,
-            metadata_obj,
-            Column("fa_alert_id", Integer, primary_key=True),
-            Column("ident", String(30)),
-            Column("origin", String(30)),
-            Column("destination", String(30)),
-            Column("aircraft_type", String(30)),
-            Column("start_date", String(30)),
-            Column("end_date", String(30)),
-        )
-        table_to_insert.create(engine, checkfirst=True)
+        metadata = MetaData()
+        table_to_insert = Table(table_name, metadata, autoload_with=engine)
 
-        # insert the info given
         with engine.connect() as conn:
             stmt = insert(table_to_insert)
             result = conn.execute(stmt, data_to_insert)
             conn.commit()
 
     except exc.SQLAlchemyError as e:
-        app.logger.error(f"SQL error occurred: {e}")
+        app.logger.error(f"SQL error occurred during insertion into table: {e}")
         return -1
 
     return 0
@@ -108,9 +133,15 @@ def create_alert() -> Response:
     # Package created alert and put into database
     fa_alert_id = int(result.headers["Location"][8:])
     holder: Dict[str, Any] = data
+    # Flatten events to insert into database
+    holder["arrival"] = holder["events"]["arrival"]
+    holder["departure"] = holder["events"]["departure"]
+    holder["cancelled"] = holder["events"]["cancelled"]
+    holder["diverted"] = holder["events"]["diverted"]
+    holder["filed"] = holder["events"]["filed"]
     holder.pop("events")
-    holder.pop("max_weekly")
-    # rename dates to avoid sql keyword "end" issue
+
+    # Rename dates to avoid sql keyword "end" issue
     holder["start_date"] = holder.pop("start")
     holder["end_date"] = holder.pop("end")
     database_data: Dict[str, Union[str, int]] = holder
