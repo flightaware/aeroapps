@@ -106,15 +106,6 @@ def create_alert() -> Response:
         return jsonify(response_frontend)
 
     # Package created alert and put into database
-    fa_alert_id = result.headers["Location"][8:]
-    holder: Dict[str, Any] = data
-    holder.pop("events")
-    holder.pop("max_weekly")
-    database_data: Dict[str, Union[str, int]] = holder
-    database_data["fa_alert_id"] = int(fa_alert_id)
-    if insert_into_db(database_data) == -1:
-        return jsonify({"Alert_id": fa_alert_id, "Success": False})
-
     fa_alert_id = int(result.headers["Location"][8:])
     holder: Dict[str, Any] = data
     holder.pop("events")
