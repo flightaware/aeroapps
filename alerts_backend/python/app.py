@@ -69,7 +69,7 @@ def create_alert() -> Response:
     """
     Function to create an alert item via a POST request from the front-end.
     If 'max_weekly' not in payload, default value is 1000
-    If 'events' not in payload, default value is all True
+    If 'events' not in payload, default value is all False
     Returns JSON Response in form {"Alert_id": <alert_id>, "Success": True/False}
     """
     # Process json
