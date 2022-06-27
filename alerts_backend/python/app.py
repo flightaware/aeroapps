@@ -33,7 +33,7 @@ table_name = "aeroapi_alerts_table"
 def create_table():
     """
     Check if table exists, and if it doesn't create it.
-    Returns 0 on success, terminates with code -2 otherwise
+    Returns 0 on success, -1 otherwise
     """
     try:
         metadata_obj = MetaData()
@@ -66,12 +66,12 @@ def create_table():
     return 0
 
 
-def insert_into_db(data_to_insert: Dict[str, Union[str, int]]) -> int:
+def insert_into_db(data_to_insert: Dict[str, Union[str, int, bool]]) -> int:
     """
     Insert object into the database based off of the engine.
     Assumes data_to_insert has values for all the keys:
     fa_alert_id, ident, origin, destination, aircraft_type, start_date, end_date.
-    Returns 0 on success, terminates otherwise with code -1
+    Returns 0 on success, -1 otherwise
     """
     try:
         metadata = MetaData()
