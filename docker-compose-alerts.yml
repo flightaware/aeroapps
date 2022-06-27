@@ -3,6 +3,8 @@ version: '3.7'
 services:
   python-alerts-backend:
     image: "ghcr.io/flightaware/aeroapps/python-alerts-backend:${AEROAPPS_VERSION:-latest}"
+    volumes:
+      - "aeroapi_alerts:/var/db/aeroapi_alerts"
     profiles: ["python"]
     build:
       context: .
@@ -36,3 +38,8 @@ services:
 
 networks:
   internal:
+
+volumes:
+  aeroapi_alerts:
+    name: aeroapi_alerts
+    external: false

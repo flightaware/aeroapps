@@ -1,13 +1,14 @@
 """Query alert information from AeroAPI and present it to a frontend service"""
 import os
 from datetime import timezone
+from typing import Dict, Any, Union
 
 import requests
 from flask import Flask, jsonify, abort, Response, request
 from flask_caching import Cache
 from flask_cors import CORS
 
-from sqlalchemy import exc, create_engine, text
+from sqlalchemy import exc, create_engine, MetaData, Table, Column, Integer, String, insert
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 AEROAPI_KEY = os.environ["AEROAPI_KEY"]
@@ -25,24 +26,44 @@ CACHE = Cache(app)
 UTC = timezone.utc
 ISO_TIME = "%Y-%m-%dT%H:%M:%SZ"
 
-# connect to the database
-engine = create_engine("sqlite+pysqlite:///:memory:", echo=False, future=True)
+# create the SQL engine using SQLite
+engine = create_engine(
+    "sqlite+pysqlite:////var/db/aeroapi_alerts/aeroapi_alerts.db", echo=False, future=True
+)
 
 
-def insert_into_db(data_to_insert: dict) -> int:
+def insert_into_db(data_to_insert: Dict[str, Union[str, int]]) -> int:
     """
-    Insert object into the database based off of the engine
+    Insert object into the database based off of the engine.
+    Assumes data_to_insert has values for all the keys:
+    fa_alert_id, ident, origin, destination, aircraft_type, start_date, end_date.
     Returns 0 on success, -1 otherwise
     """
+    table_name = "aeroapi_alerts_table"
     try:
-        with engine.begin() as conn:
-            stmt = text("""CREATE TABLE ex_table (fa_alert_id int, ident char(255), origin char(255), destination char(255),
-             aircraft_type char(255), start char(255), end char(255))""")
-            conn.execute(stmt)
-            stmt = text("""INSERT INTO ex_table (fa_alert_id, ident, origin, destination, aircraft_type, start, end)
-             VALUES (:fa_alert_id, :ident, :origin, :destination, :aircraft_type, :start, :end)""")
-            conn.execute(stmt, data_to_insert)
-    except exc.SQLAlchemyError:
+        metadata_obj = MetaData()
+        # create the table if it doesn't exist
+        table_to_insert = Table(
+            table_name,
+            metadata_obj,
+            Column("fa_alert_id", Integer, primary_key=True),
+            Column("ident", String(30)),
+            Column("origin", String(30)),
+            Column("destination", String(30)),
+            Column("aircraft_type", String(30)),
+            Column("start_date", String(30)),
+            Column("end_date", String(30)),
+        )
+        table_to_insert.create(engine, checkfirst=True)
+
+        # insert the info given
+        with engine.connect() as conn:
+            stmt = insert(table_to_insert)
+            result = conn.execute(stmt, data_to_insert)
+            conn.commit()
+
+    except exc.SQLAlchemyError as e:
+        app.logger.error(f"SQL error occurred: {e}")
         return -1
 
     return 0
@@ -58,6 +79,7 @@ def create_alert() -> Response:
     """
     # Process json
     content_type = request.headers.get("Content-Type")
+    data: Dict[Any]
     if content_type == "application/json":
         data = request.json
     elif content_type == "application/x-www-form-urlencoded":
@@ -68,8 +90,6 @@ def create_alert() -> Response:
     api_resource = "/alerts"
 
     # Check if max_weekly and events in data
-    if "max_weekly" not in data:
-        data["max_weekly"] = 1000
     if "events" not in data:
         # Assume want all events to be true
         data["events"] = {
@@ -79,6 +99,8 @@ def create_alert() -> Response:
             "diverted": True,
             "filed": True,
         }
+    if "max_weekly" not in data:
+        data["max_weekly"] = 1000
 
     app.logger.info(f"Making AeroAPI request to POST {api_resource}")
     result = AEROAPI.post(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
@@ -86,10 +108,14 @@ def create_alert() -> Response:
         abort(result.status_code)
 
     # Package created alert and put into database
-    fa_alert_id = result.headers['Location'][8:]
-    database_data = data
-    database_data['fa_alert_id'] = int(fa_alert_id)
-    insert_into_db(database_data)
+    fa_alert_id = result.headers["Location"][8:]
+    holder: Dict[str, Any] = data
+    holder.pop("events")
+    holder.pop("max_weekly")
+    database_data: Dict[str, Union[str, int]] = holder
+    database_data["fa_alert_id"] = int(fa_alert_id)
+    if insert_into_db(database_data) == -1:
+        return jsonify({"Alert_id": fa_alert_id, "Success": False})
 
     return jsonify({"Alert_id": fa_alert_id, "Success": True})
 
