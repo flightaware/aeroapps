@@ -13,10 +13,7 @@ click==8.0.3
 flask==2.1.2
     # via
     #   -r base.in
-    #   flask-caching
     #   flask-cors
-flask-caching==1.10.1
-    # via -r base.in
 flask-cors==3.0.9
     # via -r base.in
 greenlet==1.1.2

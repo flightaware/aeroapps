@@ -18,8 +18,6 @@ AEROAPI.headers.update({"x-apikey": AEROAPI_KEY})
 # pylint: disable=invalid-name
 app = Flask(__name__)
 CORS(app)
-UTC = timezone.utc
-ISO_TIME = "%Y-%m-%dT%H:%M:%SZ"
 
 # create the SQL engine using SQLite
 engine = create_engine(
@@ -70,58 +68,64 @@ def create_alert() -> Response:
     Function to create an alert item via a POST request from the front-end.
     If 'max_weekly' not in payload, default value is 1000
     If 'events' not in payload, default value is all False
-    Returns JSON Response in form {"Alert_id": <alert_id>, "Success": True/False}
+    Returns JSON Response in form {"Alert_id": <alert_id, -1 if no alert id produced>,
+    "Success": True/False, "Description": <A detailed description of the response>}
     """
+    # initialize response headers
+    r_alert_id: int = -1
+    r_success: bool = False
+    r_description: str = ''
     # Process json
     content_type = request.headers.get("Content-Type")
     data: Dict[Any]
-    response_frontend = {"Alert_id": None, "Success": False, "Description": None}
-    if content_type == "application/json":
-        data = request.json
+
+    if content_type != "application/json":
+        r_description = "Invalid content sent"
     else:
-        response_frontend["Description"] = "Invalid content sent"
-        return jsonify(response_frontend)
+        data = request.json
+        api_resource = "/alerts"
 
-    api_resource = "/alerts"
+        # Check if max_weekly and events in data
+        if "events" not in data:
+            # Assume want all events to be false
+            data["events"] = {
+                "arrival": False,
+                "departure": False,
+                "cancelled": False,
+                "diverted": False,
+                "filed": False,
+            }
+        if "max_weekly" not in data:
+            data["max_weekly"] = 1000
 
-    # Check if max_weekly and events in data
-    if "events" not in data:
-        # Assume want all events to be false
-        data["events"] = {
-            "arrival": False,
-            "departure": False,
-            "cancelled": False,
-            "diverted": False,
-            "filed": False,
-        }
-    if "max_weekly" not in data:
-        data["max_weekly"] = 1000
+        app.logger.info(f"Making AeroAPI request to POST {api_resource}")
+        result = AEROAPI.post(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
+        if result.status_code != 201:
+            # return to front end the error, decode and clean the response
+            try:
+                processed_json = result.json()
+                r_description = f"Error code {result.status_code} with the following description: {processed_json['detail']}"
+            except json.decoder.JSONDecodeError:
+                r_description = f"Error code {result.status_code} could not be parsed into JSON. The following is the HTML response given: {result.text}"
+        else:
+            # Package created alert and put into database
+            fa_alert_id = int(result.headers["Location"][8:])
+            r_alert_id = fa_alert_id
+            data.pop("events")
+            data.pop("max_weekly")
+            # rename dates to avoid sql keyword "end" issue
+            # default to None in case a user directly submits an incomplete payload
+            data["start_date"] = data.pop("start", None)
+            data["end_date"] = data.pop("end", None)
+            data["fa_alert_id"] = fa_alert_id
 
-    app.logger.info(f"Making AeroAPI request to POST {api_resource}")
-    result = AEROAPI.post(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
-    if result.status_code != 201:
-        # return to front end the error, decode and clean the response
-        response_frontend["Description"] = (f"""Error code {result.status_code} with 
-        the following description: {json.loads(result.content.decode("utf-8"))['detail'].strip()}""")
-        return jsonify(response_frontend)
+            if insert_into_db(data) == -1:
+                r_description = f"Database insertion error, check your database configuration. Alert has still been configured with alert id {r_alert_id}"
+            else:
+                r_success = True
+                r_description = f"Request sent successfully with alert id {r_alert_id}"
 
-    # Package created alert and put into database
-    fa_alert_id = int(result.headers["Location"][8:])
-    data.pop("events")
-    data.pop("max_weekly")
-    # rename dates to avoid sql keyword "end" issue
-    # default to None in case a user directly submits and incomplete payload
-    data["start_date"] = data.pop("start", None)
-    data["end_date"] = holder.pop("end", None)
-    data["fa_alert_id"] = fa_alert_id
- 
-    if insert_into_db(data) == -1:
-        response_frontend["Description"] = "Database insertion error, check your database configuration"
-        return jsonify(response_frontend)
-
-    response_frontend["Success"] = True
-    response_frontend["Description"] = "Request sent successfully"
-    return jsonify(response_frontend)
+    return jsonify({"Alert_id": r_alert_id, "Success": r_success, "Description": r_description})
 
 
-app.run(host="0.0.0.0", port=5000, debug=True)
+app.run(host="0.0.0.0", port=5001, debug=True)
