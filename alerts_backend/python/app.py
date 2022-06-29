@@ -81,7 +81,7 @@ def insert_into_db(data_to_insert: Dict[str, Union[str, int, bool]]) -> int:
             conn.commit()
 
             app.logger.info("Data successfully inserted into table")
-            
+
     except exc.SQLAlchemyError as e:
         app.logger.error(f"SQL error occurred during insertion into table: {e}")
         return -1
@@ -138,6 +138,12 @@ def create_alert() -> Response:
             # Package created alert and put into database
             fa_alert_id = int(result.headers["Location"][8:])
             r_alert_id = fa_alert_id
+            # Flatten events to insert into database
+            data["arrival"] = data["events"]["arrival"]
+            data["departure"] = data["events"]["departure"]
+            data["cancelled"] = data["events"]["cancelled"]
+            data["diverted"] = data["events"]["diverted"]
+            data["filed"] = data["events"]["filed"]
             data.pop("events")
             data.pop("max_weekly")
             # rename dates to avoid sql keyword "end" issue
