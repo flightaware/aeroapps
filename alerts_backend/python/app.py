@@ -128,4 +128,4 @@ def create_alert() -> Response:
     return jsonify({"Alert_id": r_alert_id, "Success": r_success, "Description": r_description})
 
 
-app.run(host="0.0.0.0", port=5001, debug=True)
+app.run(host="0.0.0.0", port=5000, debug=True)
