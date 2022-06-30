@@ -25,8 +25,9 @@ engine = create_engine(
     "sqlite+pysqlite:////var/db/aeroapi_alerts/aeroapi_alerts.db", echo=False, future=True
 )
 
-# Define table and metadata to insert and create
+# Define tables and metadata to insert and create
 metadata_obj = MetaData()
+# Table for alert configurations
 aeroapi_alert_configurations = Table(
             "aeroapi_alert_configurations",
             metadata_obj,
@@ -45,43 +46,102 @@ aeroapi_alert_configurations = Table(
             Column("diverted", Boolean),
             Column("filed", Boolean),
         )
+# Table for POSTed alerts
+aeroapi_alerts = Table(
+            "aeroapi_alerts",
+            metadata_obj,
+            Column("id", Integer, primary_key=True, autoincrement=True),
+            Column("long_description", Text),
+            Column("short_description", Text),
+            Column("summary", Text),
+            Column("event_code", Text),
+            Column("alert_id", Integer),
+            Column("fa_flight_id", Text),
+            Column("ident", Text),
+            Column("registration", Text),
+            Column("aircraft_type", Text),
+            Column("origin", Text),
+            Column("destination", Text)
+        )
 
 
-def create_table():
+def create_tables():
     """
-    Check if the tables exist, and if they don't create them.
+    Check if the table(s) exist, and if they don't create them.
     Returns None, raises exception if error
     """
     try:
-        # Create the table if it doesn't exist
+        # Create the table(s) if they don't exist
         metadata_obj.create_all(engine)
-        app.logger.info("Table successfully created (if not already created)")
+        app.logger.info("Table(s) successfully created (if not already created)")
     except exc.SQLAlchemyError as e:
-        # Since creation of table is a critical error, raise exception
-        app.logger.error(f"SQL error occurred during creation of table (CRITICAL - THROWING ERROR): {e}")
+        # Since creation of table(s) is a critical error, raise exception
+        app.logger.error(f"SQL error occurred during creation of table(s) (CRITICAL - THROWING ERROR): {e}")
         raise e
 
 
-def insert_into_db(data_to_insert: Dict[str, Union[str, int, bool]]) -> int:
+def insert_into_table(data_to_insert: Dict[str, Union[str, int, bool]], table: Table) -> int:
     """
-    Insert object into the database based off of the engine.
-    Assumes data_to_insert has values for all the keys:
-    fa_alert_id, ident, origin, destination, aircraft_type, start_date, end_date.
+    Insert object into the database based off of the table.
+    Assumes data_to_insert has values for all the keys
+    that are in the data_to_insert variable, and also that
+    table is a valid SQLAlchemy Table variable inside the database.
     Returns 0 on success, -1 otherwise
     """
     try:
         with engine.connect() as conn:
-            stmt = insert(aeroapi_alert_configurations)
+            stmt = insert(table)
             conn.execute(stmt, data_to_insert)
             conn.commit()
-
-            app.logger.info("Data successfully inserted into table")
-
+            app.logger.info(f"Data successfully inserted into table {table.name}")
     except exc.SQLAlchemyError as e:
-        app.logger.error(f"SQL error occurred during insertion into table: {e}")
+        app.logger.error(f"SQL error occurred during insertion into table {table.name}: {e}")
         return -1
-
     return 0
+
+
+@app.route("/post", methods=["POST"])
+def handle_alert() -> (Response, int):
+    """
+    Function to receive AeroAPI POST requests. Filters the request
+    and puts the necessary data into the SQL database.
+    Returns a JSON Response and also the status code in a tuple.
+    """
+    # Form response
+    r_title: str
+    r_detail: str
+    r_status: int
+    data: Dict[Any] = request.json
+    # Process data by getting things needed
+    # If value doesn't exist, default to None
+    processed_data: Dict[Any] = dict()
+    processed_data["long_description"] = data.get(["long_description"], None)
+    processed_data["short_description"] = data.get(["short_description"], None)
+    processed_data["summary"] = data.get(["summary"], None)
+    processed_data["event_code"] = data.get(["event_code"], None)
+    processed_data["alert_id"] = data.get(["alert_id"], None)
+    processed_data["fa_flight_id"] = data.get(["flight"], None).get(["fa_flight_id"], None)
+    processed_data["ident"] = data.get(["flight"], None).get(["ident"], None)
+    processed_data["reg"] = data.get(["flight"], None).get(["reg"], None)
+    processed_data["aircraft_type"] = data.get(["flight"], None).get(["aircraft_type"], None)
+    processed_data["origin"] = data.get(["flight"], None).get(["origin"], None)
+    processed_data["destination"] = data.get(["flight"], None).get(["destination"], None)
+    # Check if any values weren't processed
+    if None not in processed_data.values():
+        # Check if data was inserted into database properly
+        if insert_into_table(processed_data, aeroapi_alerts) != -1:
+            r_title = "Successful request"
+            r_detail = "Request processed and stored successfully"
+            r_status = 200
+        else:
+            r_title = "Error inserting into SQL Database"
+            r_detail = "Inserting into the database had an error"
+            r_status = 500
+    else:
+        r_title = "Missing info in request"
+        r_detail = "At least one value to insert in the database is missing in the post request"
+        r_status = 400
+    return jsonify({"title": r_title, "detail": r_detail, "status": r_status}), r_status
 
 
 @app.route("/create", methods=["POST"])
@@ -149,7 +209,7 @@ def create_alert() -> Response:
             data["end_date"] = datetime.strptime(data["end_date"], "%Y-%m-%d")
             data["fa_alert_id"] = fa_alert_id
 
-            if insert_into_db(data) == -1:
+            if insert_into_table(data, aeroapi_alert_configurations) == -1:
                 r_description = f"Database insertion error, check your database configuration. Alert has still been configured with alert id {r_alert_id}"
             else:
                 r_success = True
@@ -160,5 +220,6 @@ def create_alert() -> Response:
 
 if __name__ == "__main__":
     # Create the table if it wasn't created before startup
-    create_table()
+    create_tables()
     app.run(host="0.0.0.0", port=5000, debug=True)
+
