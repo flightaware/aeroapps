@@ -58,25 +58,26 @@ def create_tables():
             Column("filed", Boolean),
         )
         table_to_create_alert_configs.create(engine, checkfirst=True)
+        app.logger.info(f"Table {table_name_alert_configs} successfully created / updated")
         # Table for storing the actual alerts sent from AeroAPI to this endpoint
         table_to_create_alerts = Table(
             table_name_alerts,
             metadata_obj,
-            Column("id", Integer, primary_key=True),
-            Column("long_description", String(), primary_key=True),
-            Column("short_description", String(), primary_key=True),
-            Column("summary", String(), primary_key=True),
-            Column("event_code", String(), primary_key=True),
-            Column("alert_id", Integer, primary_key=True),
-            Column("fa_flight_id", String(), primary_key=True),
-            Column("ident", String(), primary_key=True),
-            Column("reg", String(), primary_key=True),
-            Column("aircraft_type", String(), primary_key=True),
-            Column("origin", String(), primary_key=True),
-            Column("destination", String(), primary_key=True)
+            Column("id", Integer, primary_key=True, autoincrement=True),
+            Column("long_description", String()),
+            Column("short_description", String()),
+            Column("summary", String()),
+            Column("event_code", String()),
+            Column("alert_id", Integer),
+            Column("fa_flight_id", String()),
+            Column("ident", String()),
+            Column("registration", String()),
+            Column("aircraft_type", String()),
+            Column("origin", String()),
+            Column("destination", String())
         )
         table_to_create_alerts.create(engine, checkfirst=True)
-        app.logger.info("Table successfully created / updated")
+        app.logger.info(f"Table {table_name_alerts} successfully created / updated")
     except exc.SQLAlchemyError as e:
         app.logger.error(f"SQL error occurred during creation of table (CRITICAL - INSERT WILL FAIL): {e}")
         return -1
@@ -100,7 +101,7 @@ def insert_into_table(data_to_insert: Dict[str, Union[str, int, bool]], table_na
             conn.execute(stmt, data_to_insert)
             conn.commit()
 
-            app.logger.info("Data successfully inserted into table")
+            app.logger.info(f"Data successfully inserted into table {table_name}")
 
     except exc.SQLAlchemyError as e:
         app.logger.error(f"SQL error occurred during insertion into table: {e}")
@@ -123,17 +124,17 @@ def handle_alert() -> Response:
     # Process data by getting things needed
     # Use get() if value doesn't exist -> value is None
     processed_data: Dict[Any] = dict()
-    processed_data["long_description"] = data.get(["long_description"], None)
-    processed_data["short_description"] = data.get(["short_description"], None)
-    processed_data["summary"] = data.get(["summary"], None)
-    processed_data["event_code"] = data.get(["event_code"], None)
-    processed_data["alert_id"] = data.get(["alert_id"], None)
-    processed_data["fa_flight_id"] = data.get(["flight"], None).get(["fa_flight_id"], None)
-    processed_data["ident"] = data.get(["flight"], None).get(["ident"], None)
-    processed_data["reg"] = data.get(["flight"], None).get(["reg"], None)
-    processed_data["aircraft_type"] = data.get(["flight"], None).get(["aircraft_type"], None)
-    processed_data["origin"] = data.get(["flight"], None).get(["origin"], None)
-    processed_data["destination"] = data.get(["flight"], None).get(["destination"], None)
+    processed_data["long_description"] = data.get("long_description", None)
+    processed_data["short_description"] = data.get("short_description", None)
+    processed_data["summary"] = data.get("summary", None)
+    processed_data["event_code"] = data.get("event_code", None)
+    processed_data["alert_id"] = data.get("alert_id", None)
+    processed_data["fa_flight_id"] = data.get("flight", None).get("fa_flight_id", None)
+    processed_data["ident"] = data.get("flight", None).get("ident", None)
+    processed_data["registration"] = data.get("flight", None).get("registration", None)
+    processed_data["aircraft_type"] = data.get("flight", None).get("aircraft_type", None)
+    processed_data["origin"] = data.get("flight", None).get("origin", None)
+    processed_data["destination"] = data.get("flight", None).get("destination", None)
     # Check if any values weren't processed
     if None not in processed_data.values():
         if insert_into_table(processed_data, table_name_alerts) != -1:
