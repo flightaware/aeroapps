@@ -42,4 +42,3 @@ type-check: venv
 
 test: venv
 	$(call pytool, unittest, discover -s test)
-
