@@ -48,7 +48,7 @@ aeroapi_alert_configurations = Table(
             Column("diverted", Boolean),
             Column("filed", Boolean),
         )
-table_to_create_alerts = Table(
+aeroapi_alerts = Table(
             table_name_alerts,
             metadata_obj,
             Column("id", Integer, primary_key=True, autoincrement=True),
@@ -81,7 +81,7 @@ def create_tables():
     return 0
 
 
-def insert_into_table(data_to_insert: Dict[str, Union[str, int, bool]], table_name: str) -> int:
+def insert_into_table(data_to_insert: Dict[str, Union[str, int, bool]], table: Table) -> int:
     """
     Insert object into the table based off of the engine.
     Assumes data_to_insert has values for all the keys
@@ -90,11 +90,11 @@ def insert_into_table(data_to_insert: Dict[str, Union[str, int, bool]], table_na
     """
     try:
         with engine.connect() as conn:
-            stmt = insert(aeroapi_alert_configurations)
+            stmt = insert(table)
             conn.execute(stmt, data_to_insert)
             conn.commit()
 
-            app.logger.info(f"Data successfully inserted into table {table_name}")
+            app.logger.info(f"Data successfully inserted into table {table.name}")
 
     except exc.SQLAlchemyError as e:
         app.logger.error(f"SQL error occurred during insertion into table: {e}")
@@ -130,7 +130,7 @@ def handle_alert() -> Response:
     processed_data["destination"] = data.get("flight", None).get("destination", None)
     # Check if any values weren't processed
     if None not in processed_data.values():
-        if insert_into_table(processed_data, table_name_alerts) != -1:
+        if insert_into_table(processed_data, aeroapi_alerts) != -1:
             r_title = "Successful request"
             r_reason = "Request processed and stored successfully"
             r_detail = "Request processed and stored successfully"
@@ -211,7 +211,7 @@ def create_alert() -> Response:
             data["end_date"] = data.pop("end", None)
             data["fa_alert_id"] = fa_alert_id
 
-            if insert_into_table(data, table_name_alert_configs) == -1:
+            if insert_into_table(data, aeroapi_alert_configurations) == -1:
                 r_description = f"Database insertion error, check your database configuration. Alert has still been configured with alert id {r_alert_id}"
             else:
                 r_success = True
