@@ -9,7 +9,7 @@ from flask import Flask, jsonify, Response, request
 from flask_cors import CORS
 
 from sqlalchemy import (exc, create_engine, MetaData, Table,
-                        Column, Integer, Boolean, String, insert, delete, select)
+                        Column, Integer, Boolean, Text, insert)
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 AEROAPI_KEY = os.environ["AEROAPI_KEY"]
@@ -25,30 +25,21 @@ engine = create_engine(
     "sqlite+pysqlite:////var/db/aeroapi_alerts/aeroapi_alerts.db", echo=False, future=True
 )
 # Two tables: one to store alert configs, other to store alerts being sent as endpoint
-table_name_alert_configs = "aeroapi_alert_configs_table"
-table_name_alerts = "aeroapi_alerts_table"
+table_name_alert_configs = "aeroapi_alert_configurations"
+table_name_alerts = "aeroapi_alerts"
 
-
-@app.before_first_request
-def create_tables():
-    """
-    Check if tables exists, and if it doesn't create them.
-    Returns 0 on success, -1 otherwise
-    """
-    try:
-        metadata_obj = MetaData()
-        # Create the tables if they don't exist
-        # Table for storing the configurations of the alerts created
-        table_to_create_alert_configs = Table(
+# Define table and metadata to insert and create
+metadata_obj = MetaData()
+aeroapi_alert_configurations = Table(
             table_name_alert_configs,
             metadata_obj,
             Column("fa_alert_id", Integer, primary_key=True),
-            Column("ident", String()),
-            Column("origin", String()),
-            Column("destination", String()),
-            Column("aircraft_type", String()),
-            Column("start_date", String()),
-            Column("end_date", String()),
+            Column("ident", Text()),
+            Column("origin", Text()),
+            Column("destination", Text()),
+            Column("aircraft_type", Text()),
+            Column("start_date", Text()),
+            Column("end_date", Text()),
             Column("max_weekly", Integer),
             Column("eta", Integer),
             Column("arrival", Boolean),
@@ -57,30 +48,35 @@ def create_tables():
             Column("diverted", Boolean),
             Column("filed", Boolean),
         )
-        table_to_create_alert_configs.create(engine, checkfirst=True)
-        app.logger.info(f"Table {table_name_alert_configs} successfully created / updated")
-        # Table for storing the actual alerts sent from AeroAPI to this endpoint
-        table_to_create_alerts = Table(
+table_to_create_alerts = Table(
             table_name_alerts,
             metadata_obj,
             Column("id", Integer, primary_key=True, autoincrement=True),
-            Column("long_description", String()),
-            Column("short_description", String()),
-            Column("summary", String()),
-            Column("event_code", String()),
+            Column("long_description", Text()),
+            Column("short_description", Text()),
+            Column("summary", Text()),
+            Column("event_code", Text()),
             Column("alert_id", Integer),
-            Column("fa_flight_id", String()),
-            Column("ident", String()),
-            Column("registration", String()),
-            Column("aircraft_type", String()),
-            Column("origin", String()),
-            Column("destination", String())
+            Column("fa_flight_id", Text()),
+            Column("ident", Text()),
+            Column("registration", Text()),
+            Column("aircraft_type", Text()),
+            Column("origin", Text()),
+            Column("destination", Text())
         )
-        table_to_create_alerts.create(engine, checkfirst=True)
-        app.logger.info(f"Table {table_name_alerts} successfully created / updated")
+
+
+def create_tables():
+    """
+    Check if the tables exist, and if they don't create them.
+    Returns 0 on success, -1 otherwise
+    """
+    try:
+        metadata_obj.create_all(engine)
+        app.logger.info("Table(s) successfully created (if not already created)")
     except exc.SQLAlchemyError as e:
-        app.logger.error(f"SQL error occurred during creation of table (CRITICAL - INSERT WILL FAIL): {e}")
-        return -1
+        app.logger.error(f"SQL error occurred during creation of table(s) (CRITICAL - INSERT WILL FAIL): {e}")
+        raise e
 
     return 0
 
@@ -93,11 +89,8 @@ def insert_into_table(data_to_insert: Dict[str, Union[str, int, bool]], table_na
     Returns 0 on success, -1 otherwise
     """
     try:
-        metadata = MetaData()
-        table_to_insert = Table(table_name, metadata, autoload_with=engine)
-
         with engine.connect() as conn:
-            stmt = insert(table_to_insert)
+            stmt = insert(aeroapi_alert_configurations)
             conn.execute(stmt, data_to_insert)
             conn.commit()
 
@@ -227,4 +220,7 @@ def create_alert() -> Response:
     return jsonify({"Alert_id": r_alert_id, "Success": r_success, "Description": r_description})
 
 
-app.run(host="0.0.0.0", port=5000, debug=True)
+if __name__ == "__main__":
+    # Create the tables if they weren't created before startup
+    create_tables()
+    app.run(host="0.0.0.0", port=5000, debug=True)
