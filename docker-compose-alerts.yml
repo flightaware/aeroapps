@@ -1,0 +1,37 @@
+version: '3.7'
+
+services:
+  python-alerts-backend:
+    image: "ghcr.io/flightaware/aeroapps/python-alerts-backend:${AEROAPPS_VERSION:-latest}"
+    profiles: ["python"]
+    build:
+      context: .
+      dockerfile: alerts_backend/python/Dockerfile
+    networks:
+      internal:
+        aliases:
+          - alerts-backend
+    environment:
+      - AEROAPI_KEY=${AEROAPI_KEY:?AEROAPI_KEY variable must be set}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "5"
+
+  alerts-frontend:
+    image: "ghcr.io/flightaware/alerts_frontend/alerts-frontend:${ALERTS_VERSION:-latest}"
+    profiles: ["python"]
+    ports:
+      # Port upon which to serve webapp
+      - "${WEB_SERVER_PORT:-8080}:80"
+    networks:
+      - internal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "5"
+
+networks:
+  internal:
