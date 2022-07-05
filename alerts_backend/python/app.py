@@ -104,13 +104,14 @@ def insert_into_table(data_to_insert: Dict[str, Union[str, int, bool]], table: T
 
 
 @app.route("/post", methods=["POST"])
-def handle_alert() -> Response:
+def handle_alert() -> (Response, int):
     """
-    Function to receive AeroAPI POST requests.
+    Function to receive AeroAPI POST requests. Filters the request
+    and puts the necessary data into the SQL database.
+    Returns a JSON Response and also the status code in a tuple.
     """
     # Form response
     r_title: str
-    r_reason: str
     r_detail: str
     r_status: int
     data: Dict[Any] = request.json
@@ -132,20 +133,17 @@ def handle_alert() -> Response:
     if None not in processed_data.values():
         if insert_into_table(processed_data, aeroapi_alerts) != -1:
             r_title = "Successful request"
-            r_reason = "Request processed and stored successfully"
             r_detail = "Request processed and stored successfully"
             r_status = 200
         else:
             r_title = "Error inserting into SQL Database"
-            r_reason = "Inserting into the database had an error"
             r_detail = "Inserting into the database had an error"
             r_status = 500
     else:
         r_title = "Missing info in request"
-        r_reason = "At least one value to insert in the database is missing in the post request"
         r_detail = "At least one value to insert in the database is missing in the post request"
         r_status = 400
-    return jsonify({"title": r_title, "reason": r_reason, "detail": r_detail, "status": r_status})
+    return jsonify({"title": r_title, "detail": r_detail, "status": r_status}), r_status
 
 
 @app.route("/create", methods=["POST"])
