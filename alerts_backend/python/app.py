@@ -1,6 +1,6 @@
 """Query alert information from AeroAPI and present it to a frontend service"""
 import os
-from datetime import timezone
+from datetime import *
 from typing import Dict, Any, Union
 
 import json
@@ -9,7 +9,7 @@ from flask import Flask, jsonify, Response, request
 from flask_cors import CORS
 
 from sqlalchemy import (exc, create_engine, MetaData, Table,
-                        Column, Integer, Boolean, Text, insert)
+                        Column, Integer, Boolean, Text, insert, Date)
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 AEROAPI_KEY = os.environ["AEROAPI_KEY"]
@@ -24,19 +24,19 @@ CORS(app)
 engine = create_engine(
     "sqlite+pysqlite:////var/db/aeroapi_alerts/aeroapi_alerts.db", echo=False, future=True
 )
-table_name = "aeroapi_alert_configurations"
+
 # Define table and metadata to insert and create
 metadata_obj = MetaData()
 aeroapi_alert_configurations = Table(
-            table_name,
+            "aeroapi_alert_configurations",
             metadata_obj,
             Column("fa_alert_id", Integer, primary_key=True),
-            Column("ident", Text()),
-            Column("origin", Text()),
-            Column("destination", Text()),
-            Column("aircraft_type", Text()),
-            Column("start_date", Text()),
-            Column("end_date", Text()),
+            Column("ident", Text),
+            Column("origin", Text),
+            Column("destination", Text),
+            Column("aircraft_type", Text),
+            Column("start_date", Date),
+            Column("end_date", Date),
             Column("max_weekly", Integer),
             Column("eta", Integer),
             Column("arrival", Boolean),
@@ -47,21 +47,19 @@ aeroapi_alert_configurations = Table(
         )
 
 
-# create table
 def create_table():
     """
-    Check if table exists, and if it doesn't create it.
-    Returns 0 on success, -1 otherwise
+    Check if the tables exist, and if they don't create them.
+    Returns None, raises exception if error
     """
     try:
-        # create the table if it doesn't exist
+        # Create the table if it doesn't exist
         metadata_obj.create_all(engine)
         app.logger.info("Table successfully created (if not already created)")
     except exc.SQLAlchemyError as e:
-        app.logger.error(f"SQL error occurred during creation of table (CRITICAL - INSERT WILL FAIL): {e}")
+        # Since creation of table is a critical error, raise exception
+        app.logger.error(f"SQL error occurred during creation of table (CRITICAL - THROWING ERROR): {e}")
         raise e
-
-    return 0
 
 
 def insert_into_db(data_to_insert: Dict[str, Union[str, int, bool]]) -> int:
@@ -143,10 +141,12 @@ def create_alert() -> Response:
             data["filed"] = data["events"]["filed"]
             data.pop("events")
             data.pop("max_weekly")
-            # rename dates to avoid sql keyword "end" issue
-            # default to None in case a user directly submits an incomplete payload
+            # Rename dates to avoid sql keyword "end" issue, and also change to Python datetime.date()
+            # Default to None in case a user directly submits an incomplete payload
             data["start_date"] = data.pop("start", None)
             data["end_date"] = data.pop("end", None)
+            data["start_date"] = datetime.strptime(data["start_date"], "%Y-%m-%d")
+            data["end_date"] = datetime.strptime(data["end_date"], "%Y-%m-%d")
             data["fa_alert_id"] = fa_alert_id
 
             if insert_into_db(data) == -1:
