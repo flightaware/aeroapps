@@ -26,7 +26,7 @@ services:
     profiles: ["python"]
     ports:
       # Port upon which to serve webapp
-      - "${WEB_SERVER_PORT:-8080}:80"
+      - "${POST_PORT:-8080}:80"
     networks:
       - internal
     logging:
