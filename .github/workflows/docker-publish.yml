@@ -16,6 +16,7 @@ on:
 env:
   PYTHON_IMAGE_NAME: python-backend
   JAVA_IMAGE_NAME: java-backend
+  PYTHON_ALERTS_IMAGE_NAME: python-alerts-backend
   AEROAPI_KEY: dummy
   AEROAPPS_VERSION: latest
 
@@ -41,10 +42,12 @@ jobs:
           echo "AEROAPPS_VERSION=$AEROAPPS_VERSION" >> $GITHUB_ENV
 
           docker-compose build --parallel $JAVA_IMAGE_NAME $PYTHON_IMAGE_NAME
+          docker-compose -f docker-compose-alerts.yml build $PYTHON_ALERTS_IMAGE_NAME
 
       - name: Log into registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
 
       - name: Push images
-        run: 
+        run: |
           docker-compose push $JAVA_IMAGE_NAME $PYTHON_IMAGE_NAME
+          docker-compose -f docker-compose-alerts.yml push $PYTHON_ALERTS_IMAGE_NAME
