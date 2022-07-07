@@ -1,6 +1,6 @@
 """Query alert information from AeroAPI and present it to a frontend service"""
 import os
-from datetime import *
+from datetime import datetime
 from typing import Dict, Any, Union
 
 import json
