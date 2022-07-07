@@ -115,17 +115,17 @@ def handle_alert() -> (Response, int):
     # Process data by getting things needed
     # If value doesn't exist, default to None
     processed_data: Dict[Any] = dict()
-    processed_data["long_description"] = data.get(["long_description"], None)
-    processed_data["short_description"] = data.get(["short_description"], None)
-    processed_data["summary"] = data.get(["summary"], None)
-    processed_data["event_code"] = data.get(["event_code"], None)
-    processed_data["alert_id"] = data.get(["alert_id"], None)
-    processed_data["fa_flight_id"] = data.get(["flight"], None).get(["fa_flight_id"], None)
-    processed_data["ident"] = data.get(["flight"], None).get(["ident"], None)
-    processed_data["reg"] = data.get(["flight"], None).get(["reg"], None)
-    processed_data["aircraft_type"] = data.get(["flight"], None).get(["aircraft_type"], None)
-    processed_data["origin"] = data.get(["flight"], None).get(["origin"], None)
-    processed_data["destination"] = data.get(["flight"], None).get(["destination"], None)
+    processed_data["long_description"] = data.get("long_description", None)
+    processed_data["short_description"] = data.get("short_description", None)
+    processed_data["summary"] = data.get("summary", None)
+    processed_data["event_code"] = data.get("event_code", None)
+    processed_data["alert_id"] = data.get("alert_id", None)
+    processed_data["fa_flight_id"] = data.get("flight", None).get("fa_flight_id", None)
+    processed_data["ident"] = data.get("flight", None).get("ident", None)
+    processed_data["registration"] = data.get("flight", None).get("registration", None)
+    processed_data["aircraft_type"] = data.get("flight", None).get("aircraft_type", None)
+    processed_data["origin"] = data.get("flight", None).get("origin", None)
+    processed_data["destination"] = data.get("flight", None).get("destination", None)
     # Check if any values weren't processed
     if None not in processed_data.values():
         # Check if data was inserted into database properly
