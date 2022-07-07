@@ -1,6 +1,6 @@
 """Query alert information from AeroAPI and present it to a frontend service"""
 import os
-from datetime import timezone
+from datetime import datetime
 from typing import Dict, Any, Union
 
 import json
@@ -8,7 +8,8 @@ import requests
 from flask import Flask, jsonify, Response, request
 from flask_cors import CORS
 
-from sqlalchemy import exc, create_engine, MetaData, Table, Column, Integer, String, insert
+from sqlalchemy import (exc, create_engine, MetaData, Table,
+                        Column, Integer, Boolean, Text, insert, Date)
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 AEROAPI_KEY = os.environ["AEROAPI_KEY"]
@@ -24,39 +25,60 @@ engine = create_engine(
     "sqlite+pysqlite:////var/db/aeroapi_alerts/aeroapi_alerts.db", echo=False, future=True
 )
 
+# Define table and metadata to insert and create
+metadata_obj = MetaData()
+aeroapi_alert_configurations = Table(
+            "aeroapi_alert_configurations",
+            metadata_obj,
+            Column("fa_alert_id", Integer, primary_key=True),
+            Column("ident", Text),
+            Column("origin", Text),
+            Column("destination", Text),
+            Column("aircraft_type", Text),
+            Column("start_date", Date),
+            Column("end_date", Date),
+            Column("max_weekly", Integer),
+            Column("eta", Integer),
+            Column("arrival", Boolean),
+            Column("cancelled", Boolean),
+            Column("departure", Boolean),
+            Column("diverted", Boolean),
+            Column("filed", Boolean),
+        )
 
-def insert_into_db(data_to_insert: Dict[str, Union[str, int]]) -> int:
+
+def create_table():
+    """
+    Check if the tables exist, and if they don't create them.
+    Returns None, raises exception if error
+    """
+    try:
+        # Create the table if it doesn't exist
+        metadata_obj.create_all(engine)
+        app.logger.info("Table successfully created (if not already created)")
+    except exc.SQLAlchemyError as e:
+        # Since creation of table is a critical error, raise exception
+        app.logger.error(f"SQL error occurred during creation of table (CRITICAL - THROWING ERROR): {e}")
+        raise e
+
+
+def insert_into_db(data_to_insert: Dict[str, Union[str, int, bool]]) -> int:
     """
     Insert object into the database based off of the engine.
     Assumes data_to_insert has values for all the keys:
     fa_alert_id, ident, origin, destination, aircraft_type, start_date, end_date.
     Returns 0 on success, -1 otherwise
     """
-    table_name = "aeroapi_alerts_table"
     try:
-        metadata_obj = MetaData()
-        # create the table if it doesn't exist
-        table_to_insert = Table(
-            table_name,
-            metadata_obj,
-            Column("fa_alert_id", Integer, primary_key=True),
-            Column("ident", String(30)),
-            Column("origin", String(30)),
-            Column("destination", String(30)),
-            Column("aircraft_type", String(30)),
-            Column("start_date", String(30)),
-            Column("end_date", String(30)),
-        )
-        table_to_insert.create(engine, checkfirst=True)
-
-        # insert the info given
         with engine.connect() as conn:
-            stmt = insert(table_to_insert)
+            stmt = insert(aeroapi_alert_configurations)
             conn.execute(stmt, data_to_insert)
             conn.commit()
 
+            app.logger.info("Data successfully inserted into table")
+
     except exc.SQLAlchemyError as e:
-        app.logger.error(f"SQL error occurred: {e}")
+        app.logger.error(f"SQL error occurred during insertion into table: {e}")
         return -1
 
     return 0
@@ -111,12 +133,20 @@ def create_alert() -> Response:
             # Package created alert and put into database
             fa_alert_id = int(result.headers["Location"][8:])
             r_alert_id = fa_alert_id
+            # Flatten events to insert into database
+            data["arrival"] = data["events"]["arrival"]
+            data["departure"] = data["events"]["departure"]
+            data["cancelled"] = data["events"]["cancelled"]
+            data["diverted"] = data["events"]["diverted"]
+            data["filed"] = data["events"]["filed"]
             data.pop("events")
             data.pop("max_weekly")
-            # rename dates to avoid sql keyword "end" issue
-            # default to None in case a user directly submits an incomplete payload
+            # Rename dates to avoid sql keyword "end" issue, and also change to Python datetime.datetime()
+            # Default to None in case a user directly submits an incomplete payload
             data["start_date"] = data.pop("start", None)
             data["end_date"] = data.pop("end", None)
+            data["start_date"] = datetime.strptime(data["start_date"], "%Y-%m-%d")
+            data["end_date"] = datetime.strptime(data["end_date"], "%Y-%m-%d")
             data["fa_alert_id"] = fa_alert_id
 
             if insert_into_db(data) == -1:
@@ -128,4 +158,7 @@ def create_alert() -> Response:
     return jsonify({"Alert_id": r_alert_id, "Success": r_success, "Description": r_description})
 
 
-app.run(host="0.0.0.0", port=5000, debug=True)
+if __name__ == "__main__":
+    # Create the table if it wasn't created before startup
+    create_table()
+    app.run(host="0.0.0.0", port=5000, debug=True)
