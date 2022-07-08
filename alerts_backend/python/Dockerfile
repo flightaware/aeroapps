@@ -3,7 +3,7 @@ FROM python:3.8-slim-buster
 LABEL org.opencontainers.image.source=https://github.com/flightaware/aeroapps
 
 RUN apt-get update && \
-	apt-get install -y make
+	apt-get install -y make sqlite3
 RUN id -u aeroapps || useradd -u 8081 aeroapps -c "AEROAPPS User" -m -s /bin/sh
 RUN mkdir -p /var/db/aeroapi_alerts && chown aeroapps:aeroapps /var/db/aeroapi_alerts
 USER aeroapps
