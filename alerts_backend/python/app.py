@@ -127,20 +127,21 @@ def handle_alert() -> (Response, int):
     processed_data["origin"] = data.get("flight", None).get("origin", None)
     processed_data["destination"] = data.get("flight", None).get("destination", None)
     # Check if any values weren't processed
-    if None not in processed_data.values():
-        # Check if data was inserted into database properly
-        if insert_into_table(processed_data, aeroapi_alerts) != -1:
-            r_title = "Successful request"
-            r_detail = "Request processed and stored successfully"
-            r_status = 200
-        else:
-            r_title = "Error inserting into SQL Database"
-            r_detail = "Inserting into the database had an error"
-            r_status = 500
-    else:
+    if None in processed_data.values():
         r_title = "Missing info in request"
         r_detail = "At least one value to insert in the database is missing in the post request"
         r_status = 400
+    else:
+        # Check if data was inserted into database properly
+        if insert_into_table(processed_data, aeroapi_alerts) == -1:
+            r_title = "Error inserting into SQL Database"
+            r_detail = "Inserting into the database had an error"
+            r_status = 500
+        else:
+            r_title = "Successful request"
+            r_detail = "Request processed and stored successfully"
+            r_status = 200
+
     return jsonify({"title": r_title, "detail": r_detail, "status": r_status}), r_status
 
 
