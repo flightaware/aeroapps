@@ -9,7 +9,7 @@ from flask import Flask, jsonify, Response, request
 from flask_cors import CORS
 
 from sqlalchemy import (exc, create_engine, MetaData, Table,
-                        Column, Integer, Boolean, Text, insert, Date)
+                        Column, Integer, Boolean, Text, insert, Date, select)
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 AEROAPI_KEY = os.environ["AEROAPI_KEY"]
@@ -98,6 +98,24 @@ def insert_into_table(data_to_insert: Dict[str, Union[str, int, bool]], table: T
         app.logger.error(f"SQL error occurred during insertion into table {table.name}: {e}")
         return -1
     return 0
+
+
+@app.route("/alert_configs")
+def get_alert_configs():
+    """
+    Function to return all the alerts that are currently configured
+    via the SQL table.
+    """
+    data: Dict[Any] = {"alert_configurations": []}
+    with engine.connect() as conn:
+        stmt = select(aeroapi_alert_configurations)
+        result = conn.execute(stmt)
+        conn.commit()
+        for row in result:
+            holder = dict(row)
+            data["alert_configurations"].append(holder)
+
+    return jsonify(data)
 
 
 @app.route("/post", methods=["POST"])
