@@ -201,7 +201,6 @@ def create_alert() -> Response:
             data["diverted"] = data["events"]["diverted"]
             data["filed"] = data["events"]["filed"]
             data.pop("events")
-            data.pop("max_weekly")
             # Rename dates to avoid sql keyword "end" issue, and also change to Python datetime.datetime()
             # Default to None in case a user directly submits an incomplete payload
             data["start_date"] = data.pop("start", None)
