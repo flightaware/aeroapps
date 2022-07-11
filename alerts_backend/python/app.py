@@ -1,15 +1,27 @@
 """Query alert information from AeroAPI and present it to a frontend service"""
 import os
 from datetime import datetime
-from typing import Dict, Any, Union
+from typing import Dict, Any, Tuple
 
 import json
 import requests
 from flask import Flask, jsonify, Response, request
+from flask.logging import create_logger
 from flask_cors import CORS
 
-from sqlalchemy import (exc, create_engine, MetaData, Table,
-                        Column, Integer, Boolean, Text, insert, Date, select)
+from sqlalchemy import (
+    exc,
+    create_engine,
+    MetaData,
+    Table,
+    Column,
+    Integer,
+    Boolean,
+    Text,
+    insert,
+    Date,
+    select,
+)
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 AEROAPI_KEY = os.environ["AEROAPI_KEY"]
@@ -18,6 +30,7 @@ AEROAPI.headers.update({"x-apikey": AEROAPI_KEY})
 
 # pylint: disable=invalid-name
 app = Flask(__name__)
+logger = create_logger(app)
 CORS(app)
 
 # create the SQL engine using SQLite
@@ -29,40 +42,40 @@ engine = create_engine(
 metadata_obj = MetaData()
 # Table for alert configurations
 aeroapi_alert_configurations = Table(
-            "aeroapi_alert_configurations",
-            metadata_obj,
-            Column("fa_alert_id", Integer, primary_key=True),
-            Column("ident", Text),
-            Column("origin", Text),
-            Column("destination", Text),
-            Column("aircraft_type", Text),
-            Column("start_date", Date),
-            Column("end_date", Date),
-            Column("max_weekly", Integer),
-            Column("eta", Integer),
-            Column("arrival", Boolean),
-            Column("cancelled", Boolean),
-            Column("departure", Boolean),
-            Column("diverted", Boolean),
-            Column("filed", Boolean),
-        )
+    "aeroapi_alert_configurations",
+    metadata_obj,
+    Column("fa_alert_id", Integer, primary_key=True),
+    Column("ident", Text),
+    Column("origin", Text),
+    Column("destination", Text),
+    Column("aircraft_type", Text),
+    Column("start_date", Date),
+    Column("end_date", Date),
+    Column("max_weekly", Integer),
+    Column("eta", Integer),
+    Column("arrival", Boolean),
+    Column("cancelled", Boolean),
+    Column("departure", Boolean),
+    Column("diverted", Boolean),
+    Column("filed", Boolean),
+)
 # Table for POSTed alerts
 aeroapi_alerts = Table(
-            "aeroapi_alerts",
-            metadata_obj,
-            Column("id", Integer, primary_key=True, autoincrement=True),
-            Column("long_description", Text),
-            Column("short_description", Text),
-            Column("summary", Text),
-            Column("event_code", Text),
-            Column("alert_id", Integer),
-            Column("fa_flight_id", Text),
-            Column("ident", Text),
-            Column("registration", Text),
-            Column("aircraft_type", Text),
-            Column("origin", Text),
-            Column("destination", Text)
-        )
+    "aeroapi_alerts",
+    metadata_obj,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("long_description", Text),
+    Column("short_description", Text),
+    Column("summary", Text),
+    Column("event_code", Text),
+    Column("alert_id", Integer),
+    Column("fa_flight_id", Text),
+    Column("ident", Text),
+    Column("registration", Text),
+    Column("aircraft_type", Text),
+    Column("origin", Text),
+    Column("destination", Text),
+)
 
 
 def create_tables():
@@ -73,14 +86,16 @@ def create_tables():
     try:
         # Create the table(s) if they don't exist
         metadata_obj.create_all(engine)
-        app.logger.info("Table(s) successfully created (if not already created)")
+        logger.info("Table(s) successfully created (if not already created)")
     except exc.SQLAlchemyError as e:
         # Since creation of table(s) is a critical error, raise exception
-        app.logger.error(f"SQL error occurred during creation of table(s) (CRITICAL - THROWING ERROR): {e}")
+        logger.error(
+            f"SQL error occurred during creation of table(s) (CRITICAL - THROWING ERROR): {e}"
+        )
         raise e
 
 
-def insert_into_table(data_to_insert: Dict[str, Union[str, int, bool]], table: Table) -> int:
+def insert_into_table(data_to_insert: Dict[str, Any], table: Table) -> int:
     """
     Insert object into the database based off of the table.
     Assumes data_to_insert has values for all the keys
@@ -93,9 +108,9 @@ def insert_into_table(data_to_insert: Dict[str, Union[str, int, bool]], table: T
             stmt = insert(table)
             conn.execute(stmt, data_to_insert)
             conn.commit()
-            app.logger.info(f"Data successfully inserted into table {table.name}")
+            logger.info(f"Data successfully inserted into table {table.name}")
     except exc.SQLAlchemyError as e:
-        app.logger.error(f"SQL error occurred during insertion into table {table.name}: {e}")
+        logger.error(f"SQL error occurred during insertion into table {table.name}: {e}")
         return -1
     return 0
 
@@ -106,7 +121,7 @@ def get_alert_configs():
     Function to return all the alerts that are currently configured
     via the SQL table.
     """
-    data: Dict[Any] = {"alert_configurations": []}
+    data: Dict[str, Any] = {"alert_configurations": []}
     with engine.connect() as conn:
         stmt = select(aeroapi_alert_configurations)
         result = conn.execute(stmt)
@@ -119,7 +134,7 @@ def get_alert_configs():
 
 
 @app.route("/post", methods=["POST"])
-def handle_alert() -> (Response, int):
+def handle_alert() -> Tuple[Response, int]:
     """
     Function to receive AeroAPI POST requests. Filters the request
     and puts the necessary data into the SQL database.
@@ -129,10 +144,10 @@ def handle_alert() -> (Response, int):
     r_title: str
     r_detail: str
     r_status: int
-    data: Dict[Any] = request.json
+    data: Dict[str, Any] = request.json
     # Process data by getting things needed
     # If value doesn't exist, default to None
-    processed_data: Dict[Any] = dict()
+    processed_data: Dict[str, Any] = dict()
     processed_data["long_description"] = data.get("long_description", None)
     processed_data["short_description"] = data.get("short_description", None)
     processed_data["summary"] = data.get("summary", None)
@@ -175,10 +190,10 @@ def create_alert() -> Response:
     # initialize response headers
     r_alert_id: int = -1
     r_success: bool = False
-    r_description: str = ''
+    r_description: str = ""
     # Process json
     content_type = request.headers.get("Content-Type")
-    data: Dict[Any]
+    data: Dict[str, Any]
 
     if content_type != "application/json":
         r_description = "Invalid content sent"
@@ -199,7 +214,7 @@ def create_alert() -> Response:
         if "max_weekly" not in data:
             data["max_weekly"] = 1000
 
-        app.logger.info(f"Making AeroAPI request to POST {api_resource}")
+        logger.info(f"Making AeroAPI request to POST {api_resource}")
         result = AEROAPI.post(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
         if result.status_code != 201:
             # return to front end the error, decode and clean the response
