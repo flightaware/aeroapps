@@ -1,7 +1,7 @@
 """Query alert information from AeroAPI and present it to a frontend service"""
 import os
 from datetime import datetime
-from typing import Dict, Any, Union
+from typing import Dict, Any, Tuple
 
 import json
 import requests
@@ -26,9 +26,9 @@ engine = create_engine(
     "sqlite+pysqlite:////var/db/aeroapi_alerts/aeroapi_alerts.db", echo=False, future=True
 )
 # Set journal_mode to WAL to enable reading and writing concurrently
-with engine.connect() as conn:
-    conn.exec_driver_sql("PRAGMA journal_mode=WAL")
-    conn.commit()
+with engine.connect() as conn_wal:
+    conn_wal.exec_driver_sql("PRAGMA journal_mode=WAL")
+    conn_wal.commit()
 
 # Define tables and metadata to insert and create
 metadata_obj = MetaData()
@@ -86,7 +86,7 @@ def create_tables():
         raise e
 
 
-def insert_into_table(data_to_insert: Dict[str, Union[str, int, bool]], table: Table) -> int:
+def insert_into_table(data_to_insert: Dict[str, Any], table: Table) -> int:
     """
     Insert object into the database based off of the table.
     Assumes data_to_insert has values for all the keys
@@ -107,7 +107,7 @@ def insert_into_table(data_to_insert: Dict[str, Union[str, int, bool]], table: T
 
 
 @app.route("/post", methods=["POST"])
-def handle_alert() -> (Response, int):
+def handle_alert() -> Tuple[Response, int]:
     """
     Function to receive AeroAPI POST requests. Filters the request
     and puts the necessary data into the SQL database.
@@ -117,9 +117,9 @@ def handle_alert() -> (Response, int):
     r_title: str
     r_detail: str
     r_status: int
-    data: Dict[Any] = request.json
+    data: Dict[str, Any] = request.json
     # Process data by getting things needed
-    processed_data: Dict[Any]
+    processed_data: Dict[str, Any]
     try:
         processed_data = {
             "long_description": data["long_description"],
@@ -169,7 +169,7 @@ def create_alert() -> Response:
     r_description: str = ''
     # Process json
     content_type = request.headers.get("Content-Type")
-    data: Dict[Any]
+    data: Dict[str, Any]
 
     if content_type != "application/json":
         r_description = "Invalid content sent"
