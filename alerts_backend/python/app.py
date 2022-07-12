@@ -135,8 +135,7 @@ def get_alert_configs():
         result = conn.execute(stmt)
         conn.commit()
         for row in result:
-            holder = dict(row)
-            data["alert_configurations"].append(holder)
+            data["alert_configurations"].append(dict(row))
 
     return jsonify(data)
 
