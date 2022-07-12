@@ -9,6 +9,9 @@ from flask import Flask, jsonify, Response, request
 from flask.logging import create_logger
 from flask_cors import CORS
 
+from sqlalchemy import (exc, create_engine, MetaData, Table,
+                        Column, Integer, Boolean, Text, insert, Date, DateTime)
+from sqlalchemy.sql import func
 from sqlalchemy import (
     exc,
     create_engine,
@@ -37,45 +40,50 @@ CORS(app)
 engine = create_engine(
     "sqlite+pysqlite:////var/db/aeroapi_alerts/aeroapi_alerts.db", echo=False, future=True
 )
+# Set journal_mode to WAL to enable reading and writing concurrently
+with engine.connect() as conn:
+    conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+    conn.commit()
 
 # Define tables and metadata to insert and create
 metadata_obj = MetaData()
 # Table for alert configurations
 aeroapi_alert_configurations = Table(
-    "aeroapi_alert_configurations",
-    metadata_obj,
-    Column("fa_alert_id", Integer, primary_key=True),
-    Column("ident", Text),
-    Column("origin", Text),
-    Column("destination", Text),
-    Column("aircraft_type", Text),
-    Column("start_date", Date),
-    Column("end_date", Date),
-    Column("max_weekly", Integer),
-    Column("eta", Integer),
-    Column("arrival", Boolean),
-    Column("cancelled", Boolean),
-    Column("departure", Boolean),
-    Column("diverted", Boolean),
-    Column("filed", Boolean),
-)
+            "aeroapi_alert_configurations",
+            metadata_obj,
+            Column("fa_alert_id", Integer, primary_key=True),
+            Column("ident", Text),
+            Column("origin", Text),
+            Column("destination", Text),
+            Column("aircraft_type", Text),
+            Column("start_date", Date),
+            Column("end_date", Date),
+            Column("max_weekly", Integer),
+            Column("eta", Integer),
+            Column("arrival", Boolean),
+            Column("cancelled", Boolean),
+            Column("departure", Boolean),
+            Column("diverted", Boolean),
+            Column("filed", Boolean),
+        )
 # Table for POSTed alerts
 aeroapi_alerts = Table(
-    "aeroapi_alerts",
-    metadata_obj,
-    Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("long_description", Text),
-    Column("short_description", Text),
-    Column("summary", Text),
-    Column("event_code", Text),
-    Column("alert_id", Integer),
-    Column("fa_flight_id", Text),
-    Column("ident", Text),
-    Column("registration", Text),
-    Column("aircraft_type", Text),
-    Column("origin", Text),
-    Column("destination", Text),
-)
+            "aeroapi_alerts",
+            metadata_obj,
+            Column("id", Integer, primary_key=True, autoincrement=True),
+            Column("time_alert_received", DateTime(timezone=True), server_default=func.now()), # Store time in UTC that the alert was received
+            Column("long_description", Text),
+            Column("short_description", Text),
+            Column("summary", Text),
+            Column("event_code", Text),
+            Column("alert_id", Integer),
+            Column("fa_flight_id", Text),
+            Column("ident", Text),
+            Column("registration", Text),
+            Column("aircraft_type", Text),
+            Column("origin", Text),
+            Column("destination", Text)
+        )
 
 
 def create_tables():
@@ -146,25 +154,22 @@ def handle_alert() -> Tuple[Response, int]:
     r_status: int
     data: Dict[str, Any] = request.json
     # Process data by getting things needed
-    # If value doesn't exist, default to None
-    processed_data: Dict[str, Any] = dict()
-    processed_data["long_description"] = data.get("long_description", None)
-    processed_data["short_description"] = data.get("short_description", None)
-    processed_data["summary"] = data.get("summary", None)
-    processed_data["event_code"] = data.get("event_code", None)
-    processed_data["alert_id"] = data.get("alert_id", None)
-    processed_data["fa_flight_id"] = data.get("flight", None).get("fa_flight_id", None)
-    processed_data["ident"] = data.get("flight", None).get("ident", None)
-    processed_data["registration"] = data.get("flight", None).get("registration", None)
-    processed_data["aircraft_type"] = data.get("flight", None).get("aircraft_type", None)
-    processed_data["origin"] = data.get("flight", None).get("origin", None)
-    processed_data["destination"] = data.get("flight", None).get("destination", None)
-    # Check if any values weren't processed
-    if None in processed_data.values():
-        r_title = "Missing info in request"
-        r_detail = "At least one value to insert in the database is missing in the post request"
-        r_status = 400
-    else:
+    processed_data: Dict[Any]
+    try:
+        processed_data = {
+            "long_description": data["long_description"],
+            "short_description": data["short_description"],
+            "summary": data["summary"],
+            "event_code": data["event_code"],
+            "alert_id": data["alert_id"],
+            "fa_flight_id": data["flight"]["fa_flight_id"],
+            "ident": data["flight"]["ident"],
+            "registration": data["flight"]["registration"],
+            "aircraft_type": data["flight"]["aircraft_type"],
+            "origin": data["flight"]["origin"],
+            "destination": data["flight"]["destination"],
+        }
+
         # Check if data was inserted into database properly
         if insert_into_table(processed_data, aeroapi_alerts) == -1:
             r_title = "Error inserting into SQL Database"
@@ -174,6 +179,12 @@ def handle_alert() -> Tuple[Response, int]:
             r_title = "Successful request"
             r_detail = "Request processed and stored successfully"
             r_status = 200
+    except KeyError as e:
+        # If value doesn't exist, do not insert into table and produce error
+        logger.error(f"Alert POST request did not have one or more keys with data. Will process but will return 400: {e}")
+        r_title = "Missing info in request"
+        r_detail = "At least one value to insert in the database is missing in the post request"
+        r_status = 400
 
     return jsonify({"title": r_title, "detail": r_detail, "status": r_status}), r_status
 
