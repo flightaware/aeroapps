@@ -41,9 +41,9 @@ engine = create_engine(
     "sqlite+pysqlite:////var/db/aeroapi_alerts/aeroapi_alerts.db", echo=False, future=True
 )
 # Set journal_mode to WAL to enable reading and writing concurrently
-with engine.connect() as conn:
-    conn.exec_driver_sql("PRAGMA journal_mode=WAL")
-    conn.commit()
+with engine.connect() as conn_wal:
+    conn_wal.exec_driver_sql("PRAGMA journal_mode=WAL")
+    conn_wal.commit()
 
 # Define tables and metadata to insert and create
 metadata_obj = MetaData()
@@ -153,7 +153,7 @@ def handle_alert() -> Tuple[Response, int]:
     r_status: int
     data: Dict[str, Any] = request.json
     # Process data by getting things needed
-    processed_data: Dict[Any]
+    processed_data: Dict[str, Any]
     try:
         processed_data = {
             "long_description": data["long_description"],
