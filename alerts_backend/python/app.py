@@ -25,6 +25,10 @@ CORS(app)
 engine = create_engine(
     "sqlite+pysqlite:////var/db/aeroapi_alerts/aeroapi_alerts.db", echo=False, future=True
 )
+# Set journal_mode to WAL to enable reading and writing concurrently
+with engine.connect() as conn:
+    conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+    conn.commit()
 
 # Define tables and metadata to insert and create
 metadata_obj = MetaData()
