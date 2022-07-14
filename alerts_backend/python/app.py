@@ -175,6 +175,23 @@ def delete_alert():
     return jsonify({"Success": r_success, "Description": r_description})
 
 
+@app.route("/posted_alerts")
+def get_posted_alerts():
+    """
+    Function to return all the alerts that are currently configured
+    via the SQL table.
+    """
+    data: Dict[str, Any] = {"posted_alerts": []}
+    with engine.connect() as conn:
+        stmt = select(aeroapi_alerts)
+        result = conn.execute(stmt)
+        conn.commit()
+        for row in result:
+            data["posted_alerts"].append(dict(row))
+
+    return jsonify(data)
+
+
 @app.route("/alert_configs")
 def get_alert_configs():
     """
