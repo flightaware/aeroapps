@@ -123,6 +123,34 @@ def insert_into_table(data_to_insert: Dict[str, Any], table: Table) -> int:
     return 0
 
 
+@app.rout("/delete", methods=["POST"])
+def delete_alert():
+    r_success: bool = False
+    r_description: str
+    # Process json
+    content_type = request.headers.get("Content-Type")
+    data: Dict[str, Any]
+
+    if content_type != "application/json":
+        r_description = "Invalid content sent"
+    else:
+        data = request.json
+        api_resource = f"/alerts/{data['alert_id']}"
+        logger.info(f"Making AeroAPI request to POST {api_resource}")
+        result = AEROAPI.post(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
+        if result.status_code != 204:
+            # return to front end the error, decode and clean the response
+            try:
+                processed_json = result.json()
+                r_description = f"Error code {result.status_code} with the following description: {processed_json['detail']}"
+            except json.decoder.JSONDecodeError:
+                r_description = f"Error code {result.status_code} could not be parsed into JSON. The following is the HTML response given: {result.text}"
+        else:
+            r_success = True
+            r_description = f"Request sent successfully, alert configuration {data['alert_id']} has been deleted"
+    return jsonify({"Success": r_success, "Description": r_description})
+
+                
 @app.route("/alert_configs")
 def get_alert_configs():
     """
@@ -200,7 +228,7 @@ def create_alert() -> Response:
     # initialize response headers
     r_alert_id: int = -1
     r_success: bool = False
-    r_description: str = ""
+    r_description: str
     # Process json
     content_type = request.headers.get("Content-Type")
     data: Dict[str, Any]
