@@ -123,7 +123,7 @@ def insert_into_table(data_to_insert: Dict[str, Any], table: Table) -> int:
     return 0
 
 
-@app.rout("/delete", methods=["POST"])
+@app.route("/delete", methods=["POST"])
 def delete_alert():
     r_success: bool = False
     r_description: str
@@ -137,7 +137,7 @@ def delete_alert():
         data = request.json
         api_resource = f"/alerts/{data['alert_id']}"
         logger.info(f"Making AeroAPI request to POST {api_resource}")
-        result = AEROAPI.post(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
+        result = AEROAPI.delete(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
         if result.status_code != 204:
             # return to front end the error, decode and clean the response
             try:
@@ -150,7 +150,7 @@ def delete_alert():
             r_description = f"Request sent successfully, alert configuration {data['alert_id']} has been deleted"
     return jsonify({"Success": r_success, "Description": r_description})
 
-                
+
 @app.route("/alert_configs")
 def get_alert_configs():
     """
@@ -292,4 +292,4 @@ def create_alert() -> Response:
 if __name__ == "__main__":
     # Create the table if it wasn't created before startup
     create_tables()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5001, debug=True)
