@@ -155,7 +155,7 @@ def delete_alert():
         data = request.json
         fa_alert_id = data['fa_alert_id']
         api_resource = f"/alerts/{fa_alert_id}"
-        logger.info(f"Making AeroAPI request to POST {api_resource}")
+        logger.info(f"Making AeroAPI request to DELETE {api_resource}")
         result = AEROAPI.delete(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
         if result.status_code != 204:
             # return to front end the error, decode and clean the response
