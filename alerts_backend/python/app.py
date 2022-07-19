@@ -214,8 +214,17 @@ def create_alert() -> Response:
             # Default to None in case a user directly submits an incomplete payload
             data["start_date"] = data.pop("start", None)
             data["end_date"] = data.pop("end", None)
-            data["start_date"] = datetime.strptime(data["start_date"], "%Y-%m-%d")
-            data["end_date"] = datetime.strptime(data["end_date"], "%Y-%m-%d")
+            # Allow empty strings
+            if data["start_date"] == "":
+                data["start_date"] = None
+            if data["end_date"] == "":
+                data["end_date"] = None
+            # Handle if dates are None - accept them but don't parse time
+            if data["start_date"]:
+                data["start_date"] = datetime.strptime(data["start_date"], "%Y-%m-%d")
+            if data["end_date"]:
+                data["end_date"] = datetime.strptime(data["end_date"], "%Y-%m-%d")
+
             data["fa_alert_id"] = fa_alert_id
 
             if insert_into_table(data, aeroapi_alert_configurations) == -1:
