@@ -143,6 +143,12 @@ def delete_from_table(fa_alert_id: int):
 
 @app.route("/delete", methods=["POST"])
 def delete_alert():
+    """
+    Function to delete the alert given (with key "fa_alert_id" in the payload).
+    Deletes the given alert via AeroAPI DELETE call and then deletes it from the
+    SQLite database. Returns JSON Response in form {"Success": True/False,
+    "Description": <A detailed description of the response>}
+    """
     r_success: bool = False
     r_description: str
     # Process json
