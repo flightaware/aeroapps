@@ -141,6 +141,20 @@ def delete_from_table(fa_alert_id: int):
     return 0
 
 
+@app.route("/endpoint")
+def get_endpoint_url():
+    """
+    Return the configured endpoint URL for AeroAPI to send POST requests as a JSON payload.
+    """
+    api_resource = "/alerts/endpoint"
+    logger.info(f"Making AeroAPI request to GET {api_resource}")
+    result = AEROAPI.get(f"{AEROAPI_BASE_URL}{api_resource}")
+    url = None
+    if result.json():
+        url = result.json()["url"]
+    return jsonify({"url": url})
+
+
 @app.route("/delete", methods=["POST"])
 def delete_alert():
     r_success: bool = False
