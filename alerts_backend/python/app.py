@@ -167,13 +167,15 @@ def delete_alert():
             # return to front end the error, decode and clean the response
             try:
                 processed_json = result.json()
-                r_description = f"Error code {result.status_code} with the following description: {processed_json['detail']}"
+                r_description = f"Error code {result.status_code} with the following description for alert configuration {fa_alert_id}: {processed_json['detail']}"
             except json.decoder.JSONDecodeError:
-                r_description = f"Error code {result.status_code} could not be parsed into JSON. The following is the HTML response given: {result.text}"
+                r_description = f"Error code {result.status_code} for the alert configuration {fa_alert_id} could not be parsed into JSON. The following is the HTML response given: {result.text}"
         else:
             # Check if data was inserted into database properly
             if delete_from_table(fa_alert_id) == -1:
-                r_description = "Error deleting the alert configuration from the SQL Database"
+                r_description = "Error deleting the alert configuration from the SQL Database - since it was deleted \
+                on AeroAPI but not SQL, this means the alert will still be shown on the table - in order to properly \
+                delete the alert please look in your SQL database."
             else:
                 r_success = True
                 r_description = f"Request sent successfully, alert configuration {fa_alert_id} has been deleted"
