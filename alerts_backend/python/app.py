@@ -1,7 +1,7 @@
 """Query alert information from AeroAPI and present it to a frontend service"""
 import os
 from datetime import datetime
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Set
 
 import json
 import requests
@@ -141,6 +141,48 @@ def delete_from_table(fa_alert_id: int):
     return 0
 
 
+def get_alerts_not_from_app(existing_alert_ids: Set[int]):
+    """
+    Function to get all alert configurations that were not configured
+    inside the webapp. Follows exact same format as SQL table, with extra
+    "is_from_app" column set to False. Takes in existing_alerts parameter
+    as a list to compare with configured alerts to ensure no overlap.
+    Returns a dictionary of all the alerts. If no alerts exist, return None.
+    """
+    api_resource = "/alerts"
+    logger.info(f"Making AeroAPI request to GET {api_resource}")
+    result = AEROAPI.get(f"{AEROAPI_BASE_URL}{api_resource}")
+    if not result:
+        return None
+    all_alerts = result.json()["alerts"]
+    if not all_alerts:
+        return None
+    alerts_not_from_app = []
+    for alert in all_alerts:
+        if int(alert["id"]) not in existing_alert_ids:
+            # Don't have to catch key doesn't exist as AeroAPI guarantees
+            # Keys will exist (just might be null)
+            holder = {
+                "fa_alert_id": alert["id"],
+                "ident": alert["ident"],
+                "origin": alert["origin"],
+                "destination": alert["destination"],
+                "aircraft_type": alert["aircraft_type"],
+                "start_date": alert["start"],
+                "end_date": alert["end"],
+                "max_weekly": 1000,
+                "eta": alert["eta"],
+                "arrival": alert["events"]["arrival"],
+                "cancelled": alert["events"]["cancelled"],
+                "departure": alert["events"]["departure"],
+                "diverted": alert["events"]["diverted"],
+                "filed": alert["events"]["filed"],
+                "is_from_app": False
+            }
+            alerts_not_from_app.append(holder)
+    return alerts_not_from_app
+
+
 @app.route("/delete", methods=["POST"])
 def delete_alert():
     """
@@ -207,12 +249,20 @@ def get_alert_configs():
     via the SQL table.
     """
     data: Dict[str, Any] = {"alert_configurations": []}
+    existing_alert_ids = set()
     with engine.connect() as conn:
         stmt = select(aeroapi_alert_configurations)
         result = conn.execute(stmt)
         conn.commit()
         for row in result:
-            data["alert_configurations"].append(dict(row))
+            row_holder = dict(row)
+            row_holder["is_from_app"] = True
+            data["alert_configurations"].append(row_holder)
+            existing_alert_ids.add(row_holder["fa_alert_id"])
+
+    # Append alerts not created from app
+    alerts_not_from_app = get_alerts_not_from_app(existing_alert_ids)
+    data["alert_configurations"].extend(alerts_not_from_app)
 
     return jsonify(data)
 
