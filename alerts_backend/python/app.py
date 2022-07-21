@@ -149,7 +149,7 @@ def get_endpoint_url():
     api_resource = "/alerts/endpoint"
     logger.info(f"Making AeroAPI request to GET {api_resource}")
     result = AEROAPI.get(f"{AEROAPI_BASE_URL}{api_resource}")
-    url = None
+    url = "NO ENDPOINT CONFIGURED"
     if result.json():
         url = result.json()["url"]
     return jsonify({"url": url})

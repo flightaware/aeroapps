@@ -32,8 +32,8 @@ and `docker-compose up` creates containers from those images and launches them.
 If you'd like to build the images yourself, you can instead run
 `docker-compose up --build`.
 
-*For alert creation, the commands will all be the same except add `-f 
-docker-compose-alerts.yml` to utilize the alerts docker compose file. For 
+*For alert creation, the commands will all be the same except add `-f
+docker-compose-alerts.yml` to utilize the alerts docker compose file. For
 example, instead of `docker-compose --profile python up`, you should have
 `docker-compose -f docker-compose-alerts.yml --profile python up`*.
 
@@ -45,3 +45,25 @@ log as requests are made to them.
 You can test out the FIDS/Alerts sample application by visiting http://localhost:8080 in
 your web browser (if not running Docker locally, use the Docker host's
 address).
+
+## Alerts Backend Note:
+
+Please note that when you create an alert, whenever an event is triggered for that
+alert, AeroAPI will send a POST request to your configured endpoint. In order to configure
+your endpoint, the server you are running the app on will need to have a publicly exposed
+address/port (using the POST_PORT environment variable, NOT the WEB_SERVER_PORT variable).
+Furthermore, as noted in the docker-compose-alerts.yml file, we encourage the service for
+accepting POSTed triggered alerts to be isolated, and thus will be sent to a different Docker
+container. This means that you will have to set the endpoint URL using /post, instead of /api/post.
+You can then use this address in setting the endpoint by sending a PUT request to AeroAPI
+(see the [documentation](https://flightaware.com/aeroapi/portal/documentation#put-/alerts/endpoint)
+on how to set it). NOTE: if you already had a previously configured endpoint URL for other alerts,
+**you will change the same URL!** This means that ALL of your configured alerts, including
+ones configured on FlightAware's website, will all be sent to the newly configured endpoint.
+You can see this newly configured URL by going to FlightAware's
+[push notification testing page](https://flightaware.com/commercial/aeroapi/send.rvt)
+or by seeing it on the alert creation page on the webapp. On this push notification testing
+page, you can also do two things: test your configured endpoint on the backend to see if it
+receives a test triggered alert properly, and also see the success/failure of triggered alerts
+that were sent up to 24 hours in the past, and if there was an error the backend will send the
+proper message of that error. 
