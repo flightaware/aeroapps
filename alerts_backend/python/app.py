@@ -233,6 +233,9 @@ def modify_alert():
             "diverted": aeroapi_adjusted_data.pop('diverted'),
             "filed": aeroapi_adjusted_data.pop('filed'),
         }
+        # Rename start and end again
+        aeroapi_adjusted_data["start"] = aeroapi_adjusted_data.pop("start_date")
+        aeroapi_adjusted_data["end"] = aeroapi_adjusted_data.pop("end_date")
 
         api_resource = f"/alerts/{fa_alert_id}"
         logger.info(f"Making AeroAPI request to PUT {api_resource}")
