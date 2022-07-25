@@ -1,7 +1,7 @@
 """Query alert information from AeroAPI and present it to a frontend service"""
 import os
 from datetime import datetime
-from typing import Dict, Any, Tuple, Set
+from typing import Dict, Any, Tuple, Set, List
 
 import json
 import requests
@@ -141,7 +141,7 @@ def delete_from_table(fa_alert_id: int):
     return 0
 
 
-def get_alerts_not_from_app(existing_alert_ids: Set[int]):
+def get_alerts_not_from_app(existing_alert_ids: Set[int]) -> List[Dict[str, Any]]:
     """
     Function to get all alert configurations that were not configured
     inside the webapp. Follows exact same format as SQL table, with extra
@@ -153,10 +153,10 @@ def get_alerts_not_from_app(existing_alert_ids: Set[int]):
     logger.info(f"Making AeroAPI request to GET {api_resource}")
     result = AEROAPI.get(f"{AEROAPI_BASE_URL}{api_resource}")
     if not result:
-        return None
+        return []
     all_alerts = result.json()["alerts"]
     if not all_alerts:
-        return None
+        return []
     alerts_not_from_app = []
     for alert in all_alerts:
         if int(alert["id"]) not in existing_alert_ids:
@@ -184,7 +184,7 @@ def get_alerts_not_from_app(existing_alert_ids: Set[int]):
 
 
 @app.route("/delete", methods=["POST"])
-def delete_alert():
+def delete_alert() -> Response:
     """
     Function to delete the alert given (with key "fa_alert_id" in the payload).
     Deletes the given alert via AeroAPI DELETE call and then deletes it from the
@@ -226,7 +226,7 @@ def delete_alert():
 
 
 @app.route("/posted_alerts")
-def get_posted_alerts():
+def get_posted_alerts() -> Response:
     """
     Function to return all the alerts that are currently configured
     via the SQL table.
@@ -243,10 +243,11 @@ def get_posted_alerts():
 
 
 @app.route("/alert_configs")
-def get_alert_configs():
+def get_alert_configs() -> Response:
     """
     Function to return all the alerts that are currently configured
-    via the SQL table.
+    via the SQL table. Returns all the alert configurations in a list
+    in a JSON payload.
     """
     data: Dict[str, Any] = {"alert_configurations": []}
     existing_alert_ids = set()
