@@ -50,41 +50,42 @@ with engine.connect() as conn_wal:
 metadata_obj = MetaData()
 # Table for alert configurations
 aeroapi_alert_configurations = Table(
-            "aeroapi_alert_configurations",
-            metadata_obj,
-            Column("fa_alert_id", Integer, primary_key=True),
-            Column("ident", Text),
-            Column("origin", Text),
-            Column("destination", Text),
-            Column("aircraft_type", Text),
-            Column("start_date", Date),
-            Column("end_date", Date),
-            Column("max_weekly", Integer),
-            Column("eta", Integer),
-            Column("arrival", Boolean),
-            Column("cancelled", Boolean),
-            Column("departure", Boolean),
-            Column("diverted", Boolean),
-            Column("filed", Boolean),
-        )
+    "aeroapi_alert_configurations",
+    metadata_obj,
+    Column("fa_alert_id", Integer, primary_key=True),
+    Column("ident", Text),
+    Column("origin", Text),
+    Column("destination", Text),
+    Column("aircraft_type", Text),
+    Column("start_date", Date),
+    Column("end_date", Date),
+    Column("max_weekly", Integer),
+    Column("eta", Integer),
+    Column("arrival", Boolean),
+    Column("cancelled", Boolean),
+    Column("departure", Boolean),
+    Column("diverted", Boolean),
+    Column("filed", Boolean),
+)
 # Table for POSTed alerts
 aeroapi_alerts = Table(
-            "aeroapi_alerts",
-            metadata_obj,
-            Column("id", Integer, primary_key=True, autoincrement=True),
-            Column("time_alert_received", DateTime(timezone=True), server_default=func.now()), # Store time in UTC that the alert was received
-            Column("long_description", Text),
-            Column("short_description", Text),
-            Column("summary", Text),
-            Column("event_code", Text),
-            Column("alert_id", Integer),
-            Column("fa_flight_id", Text),
-            Column("ident", Text),
-            Column("registration", Text),
-            Column("aircraft_type", Text),
-            Column("origin", Text),
-            Column("destination", Text)
-        )
+    "aeroapi_alerts",
+    metadata_obj,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("time_alert_received", DateTime(timezone=True), server_default=func.now()),
+    # Store time in UTC that the alert was received
+    Column("long_description", Text),
+    Column("short_description", Text),
+    Column("summary", Text),
+    Column("event_code", Text),
+    Column("alert_id", Integer),
+    Column("fa_flight_id", Text),
+    Column("ident", Text),
+    Column("registration", Text),
+    Column("aircraft_type", Text),
+    Column("origin", Text),
+    Column("destination", Text)
+)
 
 
 def create_tables():
@@ -124,7 +125,7 @@ def insert_into_table(data_to_insert: Dict[str, Any], table: Table) -> int:
     return 0
 
 
-def delete_from_table(fa_alert_id: int):
+def delete_from_table(fa_alert_id: int) -> int:
     """
     Delete alert config from SQL Alert Configurations table based on FA Alert ID.
     Returns 0 on success, -1 otherwise.
@@ -142,7 +143,7 @@ def delete_from_table(fa_alert_id: int):
 
 
 @app.route("/delete", methods=["POST"])
-def delete_alert():
+def delete_alert() -> Response:
     """
     Function to delete the alert given (with key "fa_alert_id" in the payload).
     Deletes the given alert via AeroAPI DELETE call and then deletes it from the
@@ -173,9 +174,11 @@ def delete_alert():
         else:
             # Check if data was inserted into database properly
             if delete_from_table(fa_alert_id) == -1:
-                r_description = "Error deleting the alert configuration from the SQL Database - since it was deleted \
-                on AeroAPI but not SQL, this means the alert will still be shown on the table - in order to properly \
-                delete the alert please look in your SQL database."
+                r_description = (
+                    "Error deleting the alert configuration from the SQL Database - since it was deleted "
+                    "on AeroAPI but not SQL, this means the alert will still be shown on the table - in order to "
+                    "properly delete the alert please look in your SQL database."
+                )
             else:
                 r_success = True
                 r_description = f"Request sent successfully, alert configuration {fa_alert_id} has been deleted"
@@ -257,7 +260,8 @@ def handle_alert() -> Tuple[Response, int]:
             r_status = 200
     except KeyError as e:
         # If value doesn't exist, do not insert into table and produce error
-        logger.error(f"Alert POST request did not have one or more keys with data. Will process but will return 400: {e}")
+        logger.error(
+            f"Alert POST request did not have one or more keys with data. Will process but will return 400: {e}")
         r_title = "Missing info in request"
         r_detail = "At least one value to insert in the database is missing in the post request"
         r_status = 400
