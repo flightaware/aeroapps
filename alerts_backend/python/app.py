@@ -250,11 +250,15 @@ def create_alert() -> Response:
             # return to front end the error, decode and clean the response
             try:
                 processed_json = result.json()
-                r_description = (f"Error code {result.status_code} with the following "
-                                 f"description: {processed_json['detail']}")
+                r_description = (
+                    f"Error code {result.status_code} with the following "
+                    f"description: {processed_json['detail']}"
+                )
             except json.decoder.JSONDecodeError:
-                r_description = (f"Error code {result.status_code} could not be parsed into JSON. "
-                                 f"The following is the HTML response given: {result.text}")
+                r_description = (
+                    f"Error code {result.status_code} could not be parsed into JSON. "
+                    f"The following is the HTML response given: {result.text}"
+                )
         else:
             # Package created alert and put into database
             fa_alert_id = int(result.headers["Location"][8:])
@@ -275,8 +279,10 @@ def create_alert() -> Response:
             data["fa_alert_id"] = fa_alert_id
 
             if insert_into_table(data, aeroapi_alert_configurations) == -1:
-                r_description = (f"Database insertion error, check your database configuration. "
-                                 f"Alert has still been configured with alert id {r_alert_id}")
+                r_description = (
+                    f"Database insertion error, check your database configuration. "
+                    f"Alert has still been configured with alert id {r_alert_id}"
+                )
             else:
                 r_success = True
                 r_description = f"Request sent successfully with alert id {r_alert_id}"
