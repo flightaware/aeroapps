@@ -125,7 +125,7 @@ def insert_into_table(data_to_insert: Dict[str, Any], table: Table) -> int:
 
 
 @app.route("/posted_alerts")
-def get_posted_alerts():
+def get_posted_alerts() -> Response:
     """
     Function to return all the triggered POSTed alerts via the SQL table.
     Returns a JSON payload of all the POSTed alerts.
@@ -142,7 +142,7 @@ def get_posted_alerts():
 
 
 @app.route("/alert_configs")
-def get_alert_configs():
+def get_alert_configs() -> Response:
     """
     Function to return all the alerts that are currently configured
     via the SQL table. Returns a JSON payload of all the configured alerts.
