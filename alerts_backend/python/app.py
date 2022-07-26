@@ -13,7 +13,7 @@ from flask_cors import CORS
 from sqlalchemy import (exc, create_engine, MetaData, Table,
                         Column, Integer, Boolean, Text, insert,
                         Date, DateTime, delete, update)
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, and_
 from sqlalchemy import (
     exc,
     create_engine,
@@ -26,6 +26,7 @@ from sqlalchemy import (
     insert,
     Date,
     select,
+    exists
 )
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
@@ -173,10 +174,10 @@ def get_alerts_not_from_app(existing_alert_ids: Set[int]):
     logger.info(f"Making AeroAPI request to GET {api_resource}")
     result = AEROAPI.get(f"{AEROAPI_BASE_URL}{api_resource}")
     if not result:
-        return None
+        return []
     all_alerts = result.json()["alerts"]
     if not all_alerts:
-        return None
+        return []
     alerts_not_from_app = []
     for alert in all_alerts:
         if int(alert["id"]) not in existing_alert_ids:
@@ -201,6 +202,27 @@ def get_alerts_not_from_app(existing_alert_ids: Set[int]):
             }
             alerts_not_from_app.append(holder)
     return alerts_not_from_app
+
+
+def check_if_dup(alert_data) -> bool:
+    """
+    Check if given alert is a duplicate alert configured. Do this by checking the
+    SQLite database. Return True if duplicate, False if not.
+    """
+    try:
+        with engine.connect() as conn:
+            stmt = select(aeroapi_alert_configurations).where(and_(
+                aeroapi_alert_configurations.c.ident == alert_data["ident"],
+                aeroapi_alert_configurations.c.destination == alert_data["destination"],
+                aeroapi_alert_configurations.c.origin == alert_data["origin"],
+                aeroapi_alert_configurations.c.aircraft_type == alert_data["aircraft_type"],
+            ))
+            result = conn.execute(stmt)
+            conn.commit()
+            return result.all()
+    except exc.SQLAlchemyError as e:
+        logger.error(f"SQL error occurred in checking for duplicate alert in table {aeroapi_alert_configurations.name}: {e}")
+        raise e
 
 
 @app.route("/modify", methods=["POST"])
@@ -437,48 +459,52 @@ def create_alert() -> Response:
         if "max_weekly" not in data:
             data["max_weekly"] = 1000
 
-        logger.info(f"Making AeroAPI request to POST {api_resource}")
-        result = AEROAPI.post(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
-        if result.status_code != 201:
-            # return to front end the error, decode and clean the response
-            try:
-                processed_json = result.json()
-                r_description = f"Error code {result.status_code} with the following description: {processed_json['detail']}"
-            except json.decoder.JSONDecodeError:
-                r_description = f"Error code {result.status_code} could not be parsed into JSON. The following is the HTML response given: {result.text}"
+        # Check if alert is duplicate
+        if check_if_dup(data):
+            r_description = f"Ticket error: alert has already been configured. Ticket has not been created"
         else:
-            # Package created alert and put into database
-            fa_alert_id = int(result.headers["Location"][8:])
-            r_alert_id = fa_alert_id
-            # Flatten events to insert into database
-            data["arrival"] = data["events"]["arrival"]
-            data["departure"] = data["events"]["departure"]
-            data["cancelled"] = data["events"]["cancelled"]
-            data["diverted"] = data["events"]["diverted"]
-            data["filed"] = data["events"]["filed"]
-            data.pop("events")
-            # Rename dates to avoid sql keyword "end" issue, and also change to Python datetime.datetime()
-            # Default to None in case a user directly submits an incomplete payload
-            data["start_date"] = data.pop("start", None)
-            data["end_date"] = data.pop("end", None)
-            # Allow empty strings
-            if data["start_date"] == "":
-                data["start_date"] = None
-            if data["end_date"] == "":
-                data["end_date"] = None
-            # Handle if dates are None - accept them but don't parse time
-            if data["start_date"]:
-                data["start_date"] = datetime.strptime(data["start_date"], "%Y-%m-%d")
-            if data["end_date"]:
-                data["end_date"] = datetime.strptime(data["end_date"], "%Y-%m-%d")
-
-            data["fa_alert_id"] = fa_alert_id
-
-            if insert_into_table(data, aeroapi_alert_configurations) == -1:
-                r_description = f"Database insertion error, check your database configuration. Alert has still been configured with alert id {r_alert_id}"
+            logger.info(f"Making AeroAPI request to POST {api_resource}")
+            result = AEROAPI.post(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
+            if result.status_code != 201:
+                # return to front end the error, decode and clean the response
+                try:
+                    processed_json = result.json()
+                    r_description = f"Error code {result.status_code} with the following description: {processed_json['detail']}"
+                except json.decoder.JSONDecodeError:
+                    r_description = f"Error code {result.status_code} could not be parsed into JSON. The following is the HTML response given: {result.text}"
             else:
-                r_success = True
-                r_description = f"Request sent successfully with alert id {r_alert_id}"
+                # Package created alert and put into database
+                fa_alert_id = int(result.headers["Location"][8:])
+                r_alert_id = fa_alert_id
+                # Flatten events to insert into database
+                data["arrival"] = data["events"]["arrival"]
+                data["departure"] = data["events"]["departure"]
+                data["cancelled"] = data["events"]["cancelled"]
+                data["diverted"] = data["events"]["diverted"]
+                data["filed"] = data["events"]["filed"]
+                data.pop("events")
+                # Rename dates to avoid sql keyword "end" issue, and also change to Python datetime.datetime()
+                # Default to None in case a user directly submits an incomplete payload
+                data["start_date"] = data.pop("start", None)
+                data["end_date"] = data.pop("end", None)
+                # Allow empty strings
+                if data["start_date"] == "":
+                    data["start_date"] = None
+                if data["end_date"] == "":
+                    data["end_date"] = None
+                # Handle if dates are None - accept them but don't parse time
+                if data["start_date"]:
+                    data["start_date"] = datetime.strptime(data["start_date"], "%Y-%m-%d")
+                if data["end_date"]:
+                    data["end_date"] = datetime.strptime(data["end_date"], "%Y-%m-%d")
+
+                data["fa_alert_id"] = fa_alert_id
+
+                if insert_into_table(data, aeroapi_alert_configurations) == -1:
+                    r_description = f"Database insertion error, check your database configuration. Alert has still been configured with alert id {r_alert_id}"
+                else:
+                    r_success = True
+                    r_description = f"Request sent successfully with alert id {r_alert_id}"
 
     return jsonify({"Alert_id": r_alert_id, "Success": r_success, "Description": r_description})
 
