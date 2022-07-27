@@ -9,9 +9,6 @@ from flask import Flask, jsonify, Response, request
 from flask.logging import create_logger
 from flask_cors import CORS
 
-from sqlalchemy import (exc, create_engine, MetaData, Table,
-                        Column, Integer, Boolean, Text, insert,
-                        Date, DateTime, delete)
 from sqlalchemy.sql import func
 from sqlalchemy import (
     exc,
@@ -25,6 +22,8 @@ from sqlalchemy import (
     insert,
     Date,
     select,
+    DateTime,
+    delete
 )
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
@@ -50,41 +49,43 @@ with engine.connect() as conn_wal:
 metadata_obj = MetaData()
 # Table for alert configurations
 aeroapi_alert_configurations = Table(
-            "aeroapi_alert_configurations",
-            metadata_obj,
-            Column("fa_alert_id", Integer, primary_key=True),
-            Column("ident", Text),
-            Column("origin", Text),
-            Column("destination", Text),
-            Column("aircraft_type", Text),
-            Column("start_date", Date),
-            Column("end_date", Date),
-            Column("max_weekly", Integer),
-            Column("eta", Integer),
-            Column("arrival", Boolean),
-            Column("cancelled", Boolean),
-            Column("departure", Boolean),
-            Column("diverted", Boolean),
-            Column("filed", Boolean),
-        )
+    "aeroapi_alert_configurations",
+    metadata_obj,
+    Column("fa_alert_id", Integer, primary_key=True),
+    Column("ident", Text),
+    Column("origin", Text),
+    Column("destination", Text),
+    Column("aircraft_type", Text),
+    Column("start_date", Date),
+    Column("end_date", Date),
+    Column("max_weekly", Integer),
+    Column("eta", Integer),
+    Column("arrival", Boolean),
+    Column("cancelled", Boolean),
+    Column("departure", Boolean),
+    Column("diverted", Boolean),
+    Column("filed", Boolean),
+)
 # Table for POSTed alerts
 aeroapi_alerts = Table(
-            "aeroapi_alerts",
-            metadata_obj,
-            Column("id", Integer, primary_key=True, autoincrement=True),
-            Column("time_alert_received", DateTime(timezone=True), server_default=func.now()), # Store time in UTC that the alert was received
-            Column("long_description", Text),
-            Column("short_description", Text),
-            Column("summary", Text),
-            Column("event_code", Text),
-            Column("alert_id", Integer),
-            Column("fa_flight_id", Text),
-            Column("ident", Text),
-            Column("registration", Text),
-            Column("aircraft_type", Text),
-            Column("origin", Text),
-            Column("destination", Text)
-        )
+    "aeroapi_alerts",
+    metadata_obj,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column(
+        "time_alert_received", DateTime(timezone=True), server_default=func.now()
+    ),  # Store time in UTC that the alert was received
+    Column("long_description", Text),
+    Column("short_description", Text),
+    Column("summary", Text),
+    Column("event_code", Text),
+    Column("alert_id", Integer),
+    Column("fa_flight_id", Text),
+    Column("ident", Text),
+    Column("registration", Text),
+    Column("aircraft_type", Text),
+    Column("origin", Text),
+    Column("destination", Text),
+)
 
 
 def create_tables():
@@ -190,10 +191,10 @@ def delete_alert():
 
 
 @app.route("/posted_alerts")
-def get_posted_alerts():
+def get_posted_alerts() -> Response:
     """
-    Function to return all the alerts that are currently configured
-    via the SQL table.
+    Function to return all the triggered POSTed alerts via the SQL table.
+    Returns a JSON payload of all the POSTed alerts.
     """
     data: Dict[str, Any] = {"posted_alerts": []}
     with engine.connect() as conn:
@@ -207,10 +208,10 @@ def get_posted_alerts():
 
 
 @app.route("/alert_configs")
-def get_alert_configs():
+def get_alert_configs() -> Response:
     """
     Function to return all the alerts that are currently configured
-    via the SQL table.
+    via the SQL table. Returns a JSON payload of all the configured alerts.
     """
     data: Dict[str, Any] = {"alert_configurations": []}
     with engine.connect() as conn:
@@ -263,7 +264,9 @@ def handle_alert() -> Tuple[Response, int]:
             r_status = 200
     except KeyError as e:
         # If value doesn't exist, do not insert into table and produce error
-        logger.error(f"Alert POST request did not have one or more keys with data. Will process but will return 400: {e}")
+        logger.error(
+            f"Alert POST request did not have one or more keys with data. Will process but will return 400: {e}"
+        )
         r_title = "Missing info in request"
         r_detail = "At least one value to insert in the database is missing in the post request"
         r_status = 400
@@ -313,9 +316,15 @@ def create_alert() -> Response:
             # return to front end the error, decode and clean the response
             try:
                 processed_json = result.json()
-                r_description = f"Error code {result.status_code} with the following description: {processed_json['detail']}"
+                r_description = (
+                    f"Error code {result.status_code} with the following "
+                    f"description: {processed_json['detail']}"
+                )
             except json.decoder.JSONDecodeError:
-                r_description = f"Error code {result.status_code} could not be parsed into JSON. The following is the HTML response given: {result.text}"
+                r_description = (
+                    f"Error code {result.status_code} could not be parsed into JSON. "
+                    f"The following is the HTML response given: {result.text}"
+                )
         else:
             # Package created alert and put into database
             fa_alert_id = int(result.headers["Location"][8:])
@@ -331,12 +340,24 @@ def create_alert() -> Response:
             # Default to None in case a user directly submits an incomplete payload
             data["start_date"] = data.pop("start", None)
             data["end_date"] = data.pop("end", None)
-            data["start_date"] = datetime.strptime(data["start_date"], "%Y-%m-%d")
-            data["end_date"] = datetime.strptime(data["end_date"], "%Y-%m-%d")
+            # Allow empty strings
+            if data["start_date"] == "":
+                data["start_date"] = None
+            if data["end_date"] == "":
+                data["end_date"] = None
+            # Handle if dates are None - accept them but don't parse time
+            if data["start_date"]:
+                data["start_date"] = datetime.strptime(data["start_date"], "%Y-%m-%d")
+            if data["end_date"]:
+                data["end_date"] = datetime.strptime(data["end_date"], "%Y-%m-%d")
+
             data["fa_alert_id"] = fa_alert_id
 
             if insert_into_table(data, aeroapi_alert_configurations) == -1:
-                r_description = f"Database insertion error, check your database configuration. Alert has still been configured with alert id {r_alert_id}"
+                r_description = (
+                    f"Database insertion error, check your database configuration. "
+                    f"Alert has still been configured with alert id {r_alert_id}"
+                )
             else:
                 r_success = True
                 r_description = f"Request sent successfully with alert id {r_alert_id}"
