@@ -143,7 +143,7 @@ def delete_from_table(fa_alert_id: int):
 
 
 @app.route("/endpoint")
-def get_endpoint_url():
+def get_endpoint_url() -> Response:
     """
     Return the configured endpoint URL for AeroAPI to send POST requests as a JSON payload.
     """
