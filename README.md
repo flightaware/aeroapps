@@ -50,19 +50,19 @@ address).
 
 Whenever an event is triggered for an
 alert, AeroAPI will send a POST request to your configured endpoint. In order to configure
-your endpoint, the server you are running the app on will need to have a publicly exposed
+your endpoint, you need to publicly expose its
 address/port (specified using the POST_PORT environment variable, NOT the WEB_SERVER_PORT variable).
 Furthermore, as noted in the docker-compose-alerts.yml file, we encourage the service for
 accepting POSTed triggered alerts to be isolated, and thus will be sent to a different Docker
 container. This means that you will have to set the endpoint URL using /post, instead of /api/post.
 In order to get send your alerts to this webapp, you should configure this webapp (give URL example) to receive alerts using
 (see the [documentation](https://flightaware.com/aeroapi/portal/documentation#put-/alerts/endpoint)
-on how to set it). NOTE: if you already had a previously configured endpoint URL for other alerts,
-**you will change the same URL!** This means that ALL of your configured alerts, including
-ones configured on FlightAware's website, will all be sent to the newly configured endpoint.
+on how to set it). NOTE: if you previously configured a different production endpoint to receive alerts,
+**you will change the same URL!** This means that ALL of your configured alerts
+will all be sent to the newly configured endpoint.
 You can see this newly configured URL by going to FlightAware's
 [push notification testing page](https://flightaware.com/commercial/aeroapi/send.rvt)
-or by seeing it on the alert creation page on the webapp. On this push notification testing
+or by going to the alert creation page on the webapp. On this push notification testing
 page, you can also do two things: test your configured endpoint on the backend to see if it
 receives a test triggered alert properly, and also see the success/failure of triggered alerts
 that were sent up to 24 hours in the past, and if there was an error the backend will send the
