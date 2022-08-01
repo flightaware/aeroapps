@@ -177,7 +177,7 @@ def delete_alert() -> Response:
                 r_description = (
                     "Error deleting the alert configuration from the SQL Database - since it was deleted "
                     "on AeroAPI but not locally, this means the alert will still be shown on the table - in order to "
-                    "properly delete the alert please look in your SQL database."
+                    "properly delete the alert please look in your local Sqlite database."
                 )
             else:
                 r_success = True
