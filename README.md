@@ -48,18 +48,28 @@ address).
 
 ## Alerts Backend Note:
 
-Whenever an event is triggered for an
-alert, AeroAPI will send a POST request to your configured endpoint. In order to configure
-your endpoint, you need to publicly expose its
+Whenever an event is triggered for an  alert, AeroAPI will send a POST request to your 
+configured endpoint. In order to configure your endpoint, you need to publicly expose its
 address/port (specified using the POST_PORT environment variable, NOT the WEB_SERVER_PORT variable).
 Furthermore, as noted in the docker-compose-alerts.yml file, we encourage the service for
 accepting POSTed triggered alerts to be isolated, and thus will be sent to a different Docker
 container. This means that you will have to set the endpoint URL using /post, instead of /api/post.
-In order to get send your alerts to this webapp, you should configure this webapp (give URL example) to receive alerts using
+In order to get send your alerts to this webapp, you should configure this webapp 
+(http://localhost:8081/post for example) to receive alerts using a REST client like cURL,
+like the following command:
+```
+curl --location --request PUT 'https://aeroapi.flightaware.com/aeroapi/alerts/endpoint' \
+--header 'Content-Type: application/json; charset=UTF-8' \
+--header 'x-apikey: <YOUR API KEY>' \
+--data-raw '{
+  "url": "http://localhost:8081/post"
+}'
+```
 (see the [documentation](https://flightaware.com/aeroapi/portal/documentation#put-/alerts/endpoint)
-on how to set it). NOTE: if you previously configured a different production endpoint to receive alerts,
+for more information). NOTE: if you previously configured a different production endpoint to receive alerts,
 **you will change the same URL!** This means that ALL of your configured alerts
 will all be sent to the newly configured endpoint.
+
 You can see this newly configured URL by going to FlightAware's
 [push notification testing page](https://flightaware.com/commercial/aeroapi/send.rvt)
 or by going to the alert creation page on the webapp. On this push notification testing
