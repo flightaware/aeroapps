@@ -48,7 +48,7 @@ address).
 
 ## Alerts Backend Note:
 
-Please note that when you create an alert, whenever an event is triggered for that
+Whenever an event is triggered for an
 alert, AeroAPI will send a POST request to your configured endpoint. In order to configure
 your endpoint, the server you are running the app on will need to have a publicly exposed
 address/port (using the POST_PORT environment variable, NOT the WEB_SERVER_PORT variable).
