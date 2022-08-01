@@ -51,7 +51,7 @@ address).
 Whenever an event is triggered for an
 alert, AeroAPI will send a POST request to your configured endpoint. In order to configure
 your endpoint, the server you are running the app on will need to have a publicly exposed
-address/port (using the POST_PORT environment variable, NOT the WEB_SERVER_PORT variable).
+address/port (specified using the POST_PORT environment variable, NOT the WEB_SERVER_PORT variable).
 Furthermore, as noted in the docker-compose-alerts.yml file, we encourage the service for
 accepting POSTed triggered alerts to be isolated, and thus will be sent to a different Docker
 container. This means that you will have to set the endpoint URL using /post, instead of /api/post.
