@@ -55,7 +55,7 @@ address/port (specified using the POST_PORT environment variable, NOT the WEB_SE
 Furthermore, as noted in the docker-compose-alerts.yml file, we encourage the service for
 accepting POSTed triggered alerts to be isolated, and thus will be sent to a different Docker
 container. This means that you will have to set the endpoint URL using /post, instead of /api/post.
-You can then use this address in setting the endpoint by sending a PUT request to AeroAPI
+In order to get send your alerts to this webapp, you should configure this webapp (give URL example) to receive alerts using
 (see the [documentation](https://flightaware.com/aeroapi/portal/documentation#put-/alerts/endpoint)
 on how to set it). NOTE: if you already had a previously configured endpoint URL for other alerts,
 **you will change the same URL!** This means that ALL of your configured alerts, including
