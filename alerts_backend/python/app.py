@@ -176,7 +176,7 @@ def delete_alert() -> Response:
             if delete_from_table(fa_alert_id) == -1:
                 r_description = (
                     "Error deleting the alert configuration from the SQL Database - since it was deleted "
-                    "on AeroAPI but not SQL, this means the alert will still be shown on the table - in order to "
+                    "on AeroAPI but not locally, this means the alert will still be shown on the table - in order to "
                     "properly delete the alert please look in your SQL database."
                 )
             else:
