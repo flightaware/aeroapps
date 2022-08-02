@@ -23,6 +23,7 @@ from sqlalchemy import (
     Date,
     select,
     DateTime,
+    delete
 )
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
@@ -124,6 +125,71 @@ def insert_into_table(data_to_insert: Dict[str, Any], table: Table) -> int:
     return 0
 
 
+def delete_from_table(fa_alert_id: int):
+    """
+    Delete alert config from SQL Alert Configurations table based on FA Alert ID.
+    Returns 0 on success, -1 otherwise.
+    """
+    try:
+        with engine.connect() as conn:
+            stmt = delete(aeroapi_alert_configurations).where(aeroapi_alert_configurations.c.fa_alert_id == fa_alert_id)
+            conn.execute(stmt)
+            conn.commit()
+            logger.info(f"Data successfully deleted from {aeroapi_alert_configurations.name}")
+    except exc.SQLAlchemyError as e:
+        logger.error(f"SQL error occurred during deletion from table {aeroapi_alert_configurations.name}: {e}")
+        return -1
+    return 0
+
+
+@app.route("/endpoint")
+def get_endpoint_url() -> Response:
+    """
+    Return the configured endpoint URL for AeroAPI to send POST requests as a JSON payload.
+    """
+    api_resource = "/alerts/endpoint"
+    logger.info(f"Making AeroAPI request to GET {api_resource}")
+    result = AEROAPI.get(f"{AEROAPI_BASE_URL}{api_resource}")
+    url = "NO ENDPOINT CONFIGURED"
+    if result.json():
+        url = result.json()["url"]
+    return jsonify({"url": url})
+
+
+@app.route("/delete", methods=["POST"])
+def delete_alert():
+    r_success: bool = False
+    r_description: str
+    # Process json
+    content_type = request.headers.get("Content-Type")
+    data: Dict[str, Any]
+
+    if content_type != "application/json":
+        r_description = "Invalid content sent"
+    else:
+        data = request.json
+        fa_alert_id = data['fa_alert_id']
+        api_resource = f"/alerts/{fa_alert_id}"
+        logger.info(f"Making AeroAPI request to DELETE {api_resource}")
+        result = AEROAPI.delete(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
+        if result.status_code != 204:
+            # return to front end the error, decode and clean the response
+            try:
+                processed_json = result.json()
+                r_description = f"Error code {result.status_code} with the following description: {processed_json['detail']}"
+            except json.decoder.JSONDecodeError:
+                r_description = f"Error code {result.status_code} could not be parsed into JSON. The following is the HTML response given: {result.text}"
+        else:
+            # Check if data was inserted into database properly
+            if delete_from_table(fa_alert_id) == -1:
+                r_description = "Error deleting the alert configuration from the SQL Database"
+            else:
+                r_success = True
+                r_description = f"Request sent successfully, alert configuration {fa_alert_id} has been deleted"
+
+    return jsonify({"Success": r_success, "Description": r_description})
+
+
 @app.route("/posted_alerts")
 def get_posted_alerts() -> Response:
     """
@@ -220,7 +286,7 @@ def create_alert() -> Response:
     # initialize response headers
     r_alert_id: int = -1
     r_success: bool = False
-    r_description: str = ""
+    r_description: str
     # Process json
     content_type = request.headers.get("Content-Type")
     data: Dict[str, Any]
