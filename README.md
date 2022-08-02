@@ -75,5 +75,5 @@ You can see this newly configured URL by going to FlightAware's
 or by going to the alert creation page on the webapp. On this push notification testing
 page, you can also do two things: test your configured endpoint on the backend to see if it
 receives a test triggered alert properly, and also see the success/failure of triggered alerts
-that were sent up to 24 hours in the past, and if there was an error the backend will send the
-proper message of that error. 
+that were sent up to 24 hours in the past. If there was an error it will display the
+full error message.
