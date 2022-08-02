@@ -246,7 +246,7 @@ def get_posted_alerts() -> Response:
 def get_alert_configs() -> Response:
     """
     Function to return all the alerts that are currently configured
-    via the SQL table. Returns all the alert configurations in a list
+    . Returns all the alert configurations in a list
     in a JSON payload.
     """
     data: Dict[str, Any] = {"alert_configurations": []}
