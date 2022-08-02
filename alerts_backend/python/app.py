@@ -9,9 +9,6 @@ from flask import Flask, jsonify, Response, request
 from flask.logging import create_logger
 from flask_cors import CORS
 
-from sqlalchemy import (exc, create_engine, MetaData, Table,
-                        Column, Integer, Boolean, Text, insert,
-                        Date, DateTime, delete)
 from sqlalchemy.sql import func
 from sqlalchemy import (
     exc,
@@ -25,6 +22,8 @@ from sqlalchemy import (
     insert,
     Date,
     select,
+    DateTime,
+    delete,
 )
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
@@ -50,41 +49,42 @@ with engine.connect() as conn_wal:
 metadata_obj = MetaData()
 # Table for alert configurations
 aeroapi_alert_configurations = Table(
-            "aeroapi_alert_configurations",
-            metadata_obj,
-            Column("fa_alert_id", Integer, primary_key=True),
-            Column("ident", Text),
-            Column("origin", Text),
-            Column("destination", Text),
-            Column("aircraft_type", Text),
-            Column("start_date", Date),
-            Column("end_date", Date),
-            Column("max_weekly", Integer),
-            Column("eta", Integer),
-            Column("arrival", Boolean),
-            Column("cancelled", Boolean),
-            Column("departure", Boolean),
-            Column("diverted", Boolean),
-            Column("filed", Boolean),
-        )
+    "aeroapi_alert_configurations",
+    metadata_obj,
+    Column("fa_alert_id", Integer, primary_key=True),
+    Column("ident", Text),
+    Column("origin", Text),
+    Column("destination", Text),
+    Column("aircraft_type", Text),
+    Column("start_date", Date),
+    Column("end_date", Date),
+    Column("max_weekly", Integer),
+    Column("eta", Integer),
+    Column("arrival", Boolean),
+    Column("cancelled", Boolean),
+    Column("departure", Boolean),
+    Column("diverted", Boolean),
+    Column("filed", Boolean),
+)
 # Table for POSTed alerts
 aeroapi_alerts = Table(
-            "aeroapi_alerts",
-            metadata_obj,
-            Column("id", Integer, primary_key=True, autoincrement=True),
-            Column("time_alert_received", DateTime(timezone=True), server_default=func.now()), # Store time in UTC that the alert was received
-            Column("long_description", Text),
-            Column("short_description", Text),
-            Column("summary", Text),
-            Column("event_code", Text),
-            Column("alert_id", Integer),
-            Column("fa_flight_id", Text),
-            Column("ident", Text),
-            Column("registration", Text),
-            Column("aircraft_type", Text),
-            Column("origin", Text),
-            Column("destination", Text)
-        )
+    "aeroapi_alerts",
+    metadata_obj,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("time_alert_received", DateTime(timezone=True), server_default=func.now()),
+    # Store time in UTC that the alert was received
+    Column("long_description", Text),
+    Column("short_description", Text),
+    Column("summary", Text),
+    Column("event_code", Text),
+    Column("alert_id", Integer),
+    Column("fa_flight_id", Text),
+    Column("ident", Text),
+    Column("registration", Text),
+    Column("aircraft_type", Text),
+    Column("origin", Text),
+    Column("destination", Text),
+)
 
 
 def create_tables():
@@ -131,12 +131,16 @@ def delete_from_table(fa_alert_id: int):
     """
     try:
         with engine.connect() as conn:
-            stmt = delete(aeroapi_alert_configurations).where(aeroapi_alert_configurations.c.fa_alert_id == fa_alert_id)
+            stmt = delete(aeroapi_alert_configurations).where(
+                aeroapi_alert_configurations.c.fa_alert_id == fa_alert_id
+            )
             conn.execute(stmt)
             conn.commit()
             logger.info(f"Data successfully deleted from {aeroapi_alert_configurations.name}")
     except exc.SQLAlchemyError as e:
-        logger.error(f"SQL error occurred during deletion from table {aeroapi_alert_configurations.name}: {e}")
+        logger.error(
+            f"SQL error occurred during deletion from table {aeroapi_alert_configurations.name}: {e}"
+        )
         return -1
     return 0
 
@@ -177,7 +181,7 @@ def get_alerts_not_from_app(existing_alert_ids: Set[int]) -> List[Dict[str, Any]
                 "departure": alert["events"]["departure"],
                 "diverted": alert["events"]["diverted"],
                 "filed": alert["events"]["filed"],
-                "is_from_app": False
+                "is_from_app": False,
             }
             alerts_not_from_app.append(holder)
     return alerts_not_from_app
@@ -201,7 +205,7 @@ def delete_alert() -> Response:
         r_description = "Invalid content sent"
     else:
         data = request.json
-        fa_alert_id = data['fa_alert_id']
+        fa_alert_id = data["fa_alert_id"]
         api_resource = f"/alerts/{fa_alert_id}"
         logger.info(f"Making AeroAPI request to DELETE {api_resource}")
         result = AEROAPI.delete(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
@@ -220,7 +224,9 @@ def delete_alert() -> Response:
                 delete the alert please look in your SQL database."
             else:
                 r_success = True
-                r_description = f"Request sent successfully, alert configuration {fa_alert_id} has been deleted"
+                r_description = (
+                    f"Request sent successfully, alert configuration {fa_alert_id} has been deleted"
+                )
 
     return jsonify({"Success": r_success, "Description": r_description})
 
@@ -245,8 +251,8 @@ def get_posted_alerts() -> Response:
 @app.route("/alert_configs")
 def get_alert_configs() -> Response:
     """
-    Function to return all the alerts that are currently configured
-    . Returns all the alert configurations in a list
+    Function to return all the alerts that are currently configured.
+    Returns all the alert configurations in a list
     in a JSON payload.
     """
     data: Dict[str, Any] = {"alert_configurations": []}
@@ -308,7 +314,9 @@ def handle_alert() -> Tuple[Response, int]:
             r_status = 200
     except KeyError as e:
         # If value doesn't exist, do not insert into table and produce error
-        logger.error(f"Alert POST request did not have one or more keys with data. Will process but will return 400: {e}")
+        logger.error(
+            f"Alert POST request did not have one or more keys with data. Will process but will return 400: {e}"
+        )
         r_title = "Missing info in request"
         r_detail = "At least one value to insert in the database is missing in the post request"
         r_status = 400
