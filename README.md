@@ -62,7 +62,7 @@ curl --location --request PUT 'https://aeroapi.flightaware.com/aeroapi/alerts/en
 --header 'Content-Type: application/json; charset=UTF-8' \
 --header 'x-apikey: <YOUR API KEY>' \
 --data-raw '{
-  "url": "<YOUR IP>"
+  "url": "http://<YOUR IP>:8081/post"
 }'
 ```
 (see the [documentation](https://flightaware.com/aeroapi/portal/documentation#put-/alerts/endpoint)
