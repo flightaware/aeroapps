@@ -23,6 +23,7 @@ from sqlalchemy import (
     Date,
     select,
     DateTime,
+    delete
 )
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
@@ -70,9 +71,8 @@ aeroapi_alerts = Table(
     "aeroapi_alerts",
     metadata_obj,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column(
-        "time_alert_received", DateTime(timezone=True), server_default=func.now()
-    ),  # Store time in UTC that the alert was received
+    # Store time in UTC that the alert was received
+    Column("time_alert_received", DateTime(timezone=True), server_default=func.now()),
     Column("long_description", Text),
     Column("short_description", Text),
     Column("summary", Text),
@@ -122,6 +122,67 @@ def insert_into_table(data_to_insert: Dict[str, Any], table: Table) -> int:
         logger.error(f"SQL error occurred during insertion into table {table.name}: {e}")
         return -1
     return 0
+
+
+def delete_from_table(fa_alert_id: int) -> int:
+    """
+    Delete alert config from SQL Alert Configurations table based on FA Alert ID.
+    Returns 0 on success, -1 otherwise.
+    """
+    try:
+        with engine.connect() as conn:
+            stmt = delete(aeroapi_alert_configurations).where(aeroapi_alert_configurations.c.fa_alert_id == fa_alert_id)
+            conn.execute(stmt)
+            conn.commit()
+            logger.info(f"Data successfully deleted from {aeroapi_alert_configurations.name}")
+    except exc.SQLAlchemyError as e:
+        logger.error(f"SQL error occurred during deletion from table {aeroapi_alert_configurations.name}: {e}")
+        return -1
+    return 0
+
+
+@app.route("/delete", methods=["POST"])
+def delete_alert() -> Response:
+    """
+    Function to delete the alert given (with key "fa_alert_id" in the payload).
+    Deletes the given alert via AeroAPI DELETE call and then deletes it from the
+    SQLite database. Returns JSON Response in form {"Success": True/False,
+    "Description": <A detailed description of the response>}
+    """
+    r_success: bool = False
+    r_description: str
+    # Process json
+    content_type = request.headers.get("Content-Type")
+    data: Dict[str, Any]
+
+    if content_type != "application/json":
+        r_description = "Invalid content sent"
+    else:
+        data = request.json
+        fa_alert_id = data['fa_alert_id']
+        api_resource = f"/alerts/{fa_alert_id}"
+        logger.info(f"Making AeroAPI request to DELETE {api_resource}")
+        result = AEROAPI.delete(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
+        if result.status_code != 204:
+            # return to front end the error, decode and clean the response
+            try:
+                processed_json = result.json()
+                r_description = f"Error code {result.status_code} with the following description for alert configuration {fa_alert_id}: {processed_json['detail']}"
+            except json.decoder.JSONDecodeError:
+                r_description = f"Error code {result.status_code} for the alert configuration {fa_alert_id} could not be parsed into JSON. The following is the HTML response given: {result.text}"
+        else:
+            # Check if data was inserted into database properly
+            if delete_from_table(fa_alert_id) == -1:
+                r_description = (
+                    "Error deleting the alert configuration from the SQL Database - since it was deleted "
+                    "on AeroAPI but not locally, this means the alert will still be shown on the table - in order to "
+                    "properly delete the alert please look in your local Sqlite database."
+                )
+            else:
+                r_success = True
+                r_description = f"Request sent successfully, alert configuration {fa_alert_id} has been deleted"
+
+    return jsonify({"Success": r_success, "Description": r_description})
 
 
 @app.route("/posted_alerts")
@@ -220,7 +281,7 @@ def create_alert() -> Response:
     # initialize response headers
     r_alert_id: int = -1
     r_success: bool = False
-    r_description: str = ""
+    r_description: str
     # Process json
     content_type = request.headers.get("Content-Type")
     data: Dict[str, Any]
