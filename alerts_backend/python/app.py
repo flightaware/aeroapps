@@ -71,8 +71,8 @@ aeroapi_alerts = Table(
     "aeroapi_alerts",
     metadata_obj,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("time_alert_received", DateTime(timezone=True), server_default=func.now()),
     # Store time in UTC that the alert was received
+    Column("time_alert_received", DateTime(timezone=True), server_default=func.now()),
     Column("long_description", Text),
     Column("short_description", Text),
     Column("summary", Text),
@@ -124,7 +124,7 @@ def insert_into_table(data_to_insert: Dict[str, Any], table: Table) -> int:
     return 0
 
 
-def delete_from_table(fa_alert_id: int):
+def delete_from_table(fa_alert_id: int) -> int:
     """
     Delete alert config from SQL Alert Configurations table based on FA Alert ID.
     Returns 0 on success, -1 otherwise.
@@ -165,7 +165,7 @@ def get_alerts_not_from_app(existing_alert_ids: Set[int]) -> List[Dict[str, Any]
     for alert in all_alerts:
         if int(alert["id"]) not in existing_alert_ids:
             # Don't have to catch key doesn't exist as AeroAPI guarantees
-            # Keys will exist (just might be null)
+            # keys will exist (just might be null)
             holder = {
                 "fa_alert_id": alert["id"],
                 "ident": alert["ident"],
@@ -185,6 +185,20 @@ def get_alerts_not_from_app(existing_alert_ids: Set[int]) -> List[Dict[str, Any]
             }
             alerts_not_from_app.append(holder)
     return alerts_not_from_app
+
+
+@app.route("/endpoint")
+def get_endpoint_url() -> Response:
+    """
+    Return the configured endpoint URL for AeroAPI to send POST requests as a JSON payload.
+    """
+    api_resource = "/alerts/endpoint"
+    logger.info(f"Making AeroAPI request to GET {api_resource}")
+    result = AEROAPI.get(f"{AEROAPI_BASE_URL}{api_resource}")
+    url = "NO ENDPOINT CONFIGURED"
+    if result.json():
+        url = result.json()["url"]
+    return jsonify({"url": url})
 
 
 @app.route("/delete", methods=["POST"])
@@ -219,9 +233,11 @@ def delete_alert() -> Response:
         else:
             # Check if data was inserted into database properly
             if delete_from_table(fa_alert_id) == -1:
-                r_description = "Error deleting the alert configuration from the SQL Database - since it was deleted \
-                on AeroAPI but not SQL, this means the alert will still be shown on the table - in order to properly \
-                delete the alert please look in your SQL database."
+                r_description = (
+                    "Error deleting the alert configuration from the SQL Database - since it was deleted "
+                    "on AeroAPI but not locally, this means the alert will still be shown on the table - in order to "
+                    "properly delete the alert please look in your local Sqlite database."
+                )
             else:
                 r_success = True
                 r_description = (
@@ -234,8 +250,8 @@ def delete_alert() -> Response:
 @app.route("/posted_alerts")
 def get_posted_alerts() -> Response:
     """
-    Function to return all the alerts that are currently configured
-    via the SQL table.
+    Function to return all the triggered POSTed alerts via the SQL table.
+    Returns a JSON payload of all the POSTed alerts.
     """
     data: Dict[str, Any] = {"posted_alerts": []}
     with engine.connect() as conn:
@@ -251,9 +267,8 @@ def get_posted_alerts() -> Response:
 @app.route("/alert_configs")
 def get_alert_configs() -> Response:
     """
-    Function to return all the alerts that are currently configured.
-    Returns all the alert configurations in a list
-    in a JSON payload.
+    Function to return all the alerts that are currently configured
+    via the SQL table. Returns a JSON payload of all the configured alerts as a list.
     """
     data: Dict[str, Any] = {"alert_configurations": []}
     existing_alert_ids = set()
@@ -366,9 +381,15 @@ def create_alert() -> Response:
             # return to front end the error, decode and clean the response
             try:
                 processed_json = result.json()
-                r_description = f"Error code {result.status_code} with the following description: {processed_json['detail']}"
+                r_description = (
+                    f"Error code {result.status_code} with the following "
+                    f"description: {processed_json['detail']}"
+                )
             except json.decoder.JSONDecodeError:
-                r_description = f"Error code {result.status_code} could not be parsed into JSON. The following is the HTML response given: {result.text}"
+                r_description = (
+                    f"Error code {result.status_code} could not be parsed into JSON. "
+                    f"The following is the HTML response given: {result.text}"
+                )
         else:
             # Package created alert and put into database
             fa_alert_id = int(result.headers["Location"][8:])
@@ -398,7 +419,10 @@ def create_alert() -> Response:
             data["fa_alert_id"] = fa_alert_id
 
             if insert_into_table(data, aeroapi_alert_configurations) == -1:
-                r_description = f"Database insertion error, check your database configuration. Alert has still been configured with alert id {r_alert_id}"
+                r_description = (
+                    f"Database insertion error, check your database configuration. "
+                    f"Alert has still been configured with alert id {r_alert_id}"
+                )
             else:
                 r_success = True
                 r_description = f"Request sent successfully with alert id {r_alert_id}"
