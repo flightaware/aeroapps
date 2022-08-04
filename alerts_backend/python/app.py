@@ -1,7 +1,7 @@
 """Query alert information from AeroAPI and present it to a frontend service"""
 import os
 from datetime import datetime
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Set, List
 
 import json
 import requests
@@ -23,7 +23,7 @@ from sqlalchemy import (
     Date,
     select,
     DateTime,
-    delete
+    delete,
 )
 
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
@@ -131,14 +131,60 @@ def delete_from_table(fa_alert_id: int) -> int:
     """
     try:
         with engine.connect() as conn:
-            stmt = delete(aeroapi_alert_configurations).where(aeroapi_alert_configurations.c.fa_alert_id == fa_alert_id)
+            stmt = delete(aeroapi_alert_configurations).where(
+                aeroapi_alert_configurations.c.fa_alert_id == fa_alert_id
+            )
             conn.execute(stmt)
             conn.commit()
             logger.info(f"Data successfully deleted from {aeroapi_alert_configurations.name}")
     except exc.SQLAlchemyError as e:
-        logger.error(f"SQL error occurred during deletion from table {aeroapi_alert_configurations.name}: {e}")
+        logger.error(
+            f"SQL error occurred during deletion from table {aeroapi_alert_configurations.name}: {e}"
+        )
         return -1
     return 0
+
+
+def get_alerts_not_from_app(existing_alert_ids: Set[int]) -> List[Dict[str, Any]]:
+    """
+    Function to get all alert configurations that were not configured
+    inside the webapp. Follows exact same format as SQL table, with extra
+    "is_from_app" column set to False. Takes in existing_alerts parameter
+    as a list to compare with configured alerts to ensure no overlap.
+    Returns a dictionary of all the alerts. If no alerts exist, return None.
+    """
+    api_resource = "/alerts"
+    logger.info(f"Making AeroAPI request to GET {api_resource}")
+    result = AEROAPI.get(f"{AEROAPI_BASE_URL}{api_resource}")
+    if not result:
+        return []
+    all_alerts = result.json()["alerts"]
+    if not all_alerts:
+        return []
+    alerts_not_from_app = []
+    for alert in all_alerts:
+        if int(alert["id"]) not in existing_alert_ids:
+            # Don't have to catch key doesn't exist as AeroAPI guarantees
+            # keys will exist (just might be null)
+            holder = {
+                "fa_alert_id": alert["id"],
+                "ident": alert["ident"],
+                "origin": alert["origin"],
+                "destination": alert["destination"],
+                "aircraft_type": alert["aircraft_type"],
+                "start_date": alert["start"],
+                "end_date": alert["end"],
+                "max_weekly": 1000,
+                "eta": alert["eta"],
+                "arrival": alert["events"]["arrival"],
+                "cancelled": alert["events"]["cancelled"],
+                "departure": alert["events"]["departure"],
+                "diverted": alert["events"]["diverted"],
+                "filed": alert["events"]["filed"],
+                "is_from_app": False,
+            }
+            alerts_not_from_app.append(holder)
+    return alerts_not_from_app
 
 
 @app.route("/endpoint")
@@ -173,7 +219,7 @@ def delete_alert() -> Response:
         r_description = "Invalid content sent"
     else:
         data = request.json
-        fa_alert_id = data['fa_alert_id']
+        fa_alert_id = data["fa_alert_id"]
         api_resource = f"/alerts/{fa_alert_id}"
         logger.info(f"Making AeroAPI request to DELETE {api_resource}")
         result = AEROAPI.delete(f"{AEROAPI_BASE_URL}{api_resource}", json=data)
@@ -194,7 +240,9 @@ def delete_alert() -> Response:
                 )
             else:
                 r_success = True
-                r_description = f"Request sent successfully, alert configuration {fa_alert_id} has been deleted"
+                r_description = (
+                    f"Request sent successfully, alert configuration {fa_alert_id} has been deleted"
+                )
 
     return jsonify({"Success": r_success, "Description": r_description})
 
@@ -220,15 +268,23 @@ def get_posted_alerts() -> Response:
 def get_alert_configs() -> Response:
     """
     Function to return all the alerts that are currently configured
-    via the SQL table. Returns a JSON payload of all the configured alerts.
+    via the SQL table. Returns a JSON payload of all the configured alerts as a list.
     """
     data: Dict[str, Any] = {"alert_configurations": []}
+    existing_alert_ids = set()
     with engine.connect() as conn:
         stmt = select(aeroapi_alert_configurations)
         result = conn.execute(stmt)
         conn.commit()
         for row in result:
-            data["alert_configurations"].append(dict(row))
+            row_holder = dict(row)
+            row_holder["is_from_app"] = True
+            data["alert_configurations"].append(row_holder)
+            existing_alert_ids.add(row_holder["fa_alert_id"])
+
+    # Append alerts not created from app
+    alerts_not_from_app = get_alerts_not_from_app(existing_alert_ids)
+    data["alert_configurations"].extend(alerts_not_from_app)
 
     return jsonify(data)
 
