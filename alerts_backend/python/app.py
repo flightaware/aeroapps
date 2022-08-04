@@ -71,9 +71,8 @@ aeroapi_alerts = Table(
     "aeroapi_alerts",
     metadata_obj,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column(
-        "time_alert_received", DateTime(timezone=True), server_default=func.now()
-    ),  # Store time in UTC that the alert was received
+    # Store time in UTC that the alert was received
+    Column("time_alert_received", DateTime(timezone=True), server_default=func.now()),
     Column("long_description", Text),
     Column("short_description", Text),
     Column("summary", Text),
@@ -125,7 +124,7 @@ def insert_into_table(data_to_insert: Dict[str, Any], table: Table) -> int:
     return 0
 
 
-def delete_from_table(fa_alert_id: int):
+def delete_from_table(fa_alert_id: int) -> int:
     """
     Delete alert config from SQL Alert Configurations table based on FA Alert ID.
     Returns 0 on success, -1 otherwise.
@@ -157,7 +156,13 @@ def get_endpoint_url() -> Response:
 
 
 @app.route("/delete", methods=["POST"])
-def delete_alert():
+def delete_alert() -> Response:
+    """
+    Function to delete the alert given (with key "fa_alert_id" in the payload).
+    Deletes the given alert via AeroAPI DELETE call and then deletes it from the
+    SQLite database. Returns JSON Response in form {"Success": True/False,
+    "Description": <A detailed description of the response>}
+    """
     r_success: bool = False
     r_description: str
     # Process json
@@ -176,13 +181,17 @@ def delete_alert():
             # return to front end the error, decode and clean the response
             try:
                 processed_json = result.json()
-                r_description = f"Error code {result.status_code} with the following description: {processed_json['detail']}"
+                r_description = f"Error code {result.status_code} with the following description for alert configuration {fa_alert_id}: {processed_json['detail']}"
             except json.decoder.JSONDecodeError:
-                r_description = f"Error code {result.status_code} could not be parsed into JSON. The following is the HTML response given: {result.text}"
+                r_description = f"Error code {result.status_code} for the alert configuration {fa_alert_id} could not be parsed into JSON. The following is the HTML response given: {result.text}"
         else:
             # Check if data was inserted into database properly
             if delete_from_table(fa_alert_id) == -1:
-                r_description = "Error deleting the alert configuration from the SQL Database"
+                r_description = (
+                    "Error deleting the alert configuration from the SQL Database - since it was deleted "
+                    "on AeroAPI but not locally, this means the alert will still be shown on the table - in order to "
+                    "properly delete the alert please look in your local Sqlite database."
+                )
             else:
                 r_success = True
                 r_description = f"Request sent successfully, alert configuration {fa_alert_id} has been deleted"
